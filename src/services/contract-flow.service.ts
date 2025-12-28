@@ -96,46 +96,58 @@ async function createStatusLog(params: {
 /**
  * 构建签署方列表
  *
- * 签署顺序：乙方先签 → 甲方后签（自动签署）
+ * 签署顺序：乙方（我们公司）先自动盖章 → 甲方（客户）后签署
+ * 
+ * 业务模式：
+ * - 乙方 = 我们公司（发起方，静默签/自动盖章）- 使用环境变量配置
+ * - 甲方 = 客户（接收方，需要手动签署）- 使用表单填写的信息
+ * 
+ * 注意：代码中的 partyB* 变量实际存储的是"甲方（客户）"的信息
+ * 这是历史命名问题，但逻辑是正确的
  */
 function buildApprovers(contract: {
-  partyBName: string;
-  partyBPhone: string;
+  partyBName: string;      // 实际是甲方（客户）姓名
+  partyBPhone: string;     // 实际是甲方（客户）手机号
   partyBIdCard: string | null;
   partyBType: string;
   partyBOrgName: string | null;
 }): FlowApprover[] {
   const approvers: FlowApprover[] = [];
 
-  // 乙方签署方（个人或企业）
+  // 第一个签署方：乙方（我们公司 - 企业静默签/自动盖章）
+  // SignOrder: 0 表示第一个签署
+  // 使用环境变量中配置的企业信息
+  approvers.push({
+    ApproverType: ApproverType.ENTERPRISE_AUTO,  // 企业静默签
+    ApproverName: PARTY_A_SIGNER_NAME,           // 环境变量：企业签署人姓名
+    ApproverMobile: PARTY_A_SIGNER_MOBILE,       // 环境变量：企业签署人手机号
+    OrganizationName: PARTY_A_ORG_NAME,          // 环境变量：企业名称
+    SignOrder: 0,
+  });
+
+  // 第二个签署方：甲方（客户 - 需要手动签署）
+  // SignOrder: 1 表示第二个签署
+  // 使用表单中填写的客户信息
   if (contract.partyBType === "PERSONAL") {
+    // 个人客户
     approvers.push({
       ApproverType: ApproverType.PERSONAL,
       ApproverName: contract.partyBName,
       ApproverMobile: contract.partyBPhone,
       ApproverIdCardNumber: contract.partyBIdCard || undefined,
-      SignOrder: 0,
+      SignOrder: 1,
     });
   } else {
-    // 企业签署方
+    // 企业客户
     approvers.push({
       ApproverType: ApproverType.ENTERPRISE,
       ApproverName: contract.partyBName,
       ApproverMobile: contract.partyBPhone,
       OrganizationName: contract.partyBOrgName || undefined,
       ApproverIdCardNumber: contract.partyBIdCard || undefined,
-      SignOrder: 0,
+      SignOrder: 1,
     });
   }
-
-  // 甲方签署方（企业自动签署）
-  approvers.push({
-    ApproverType: ApproverType.ENTERPRISE,
-    ApproverName: PARTY_A_SIGNER_NAME,
-    ApproverMobile: PARTY_A_SIGNER_MOBILE,
-    OrganizationName: PARTY_A_ORG_NAME,
-    SignOrder: 1,
-  });
 
   return approvers;
 }
@@ -146,15 +158,14 @@ function buildApprovers(contract: {
  *
  * 将合同的formData转换为腾讯电子签的FormFields格式
  * 根据产品的formFields配置进行验证和转换
+ * 
+ * 这个函数就像一个"翻译器"：
+ * - 把用户填写的表单数据转换成腾讯电子签 API 能理解的格式
+ * - 只处理发起方字段（INITIATOR），签署方字段由乙方在签署页面填写
  */
 function buildFormFields(
   formData: Record<string, unknown> | null,
-  formFieldsConfig: Array<{
-    name: string;
-    label: string;
-    type: string;
-    required: boolean;
-  }> | null
+  formFieldsConfig: unknown
 ): FormField[] {
   if (!formData) {
     return [];
@@ -162,50 +173,111 @@ function buildFormFields(
 
   const fields: FormField[] = [];
 
-  // 如果有配置，只处理配置中定义的字段
-  if (formFieldsConfig && formFieldsConfig.length > 0) {
-    for (const config of formFieldsConfig) {
-      const value = formData[config.name];
-      
-      // 跳过空值（除非是必填字段，但必填字段应该在创建合同时就验证了）
-      if (value === null || value === undefined || value === '') {
-        continue;
-      }
+  // 尝试解析新的 ProductFormFields 结构
+  if (formFieldsConfig && typeof formFieldsConfig === 'object') {
+    const config = formFieldsConfig as {
+      initiatorFields?: Array<{
+        name: string;
+        label: string;
+        type: string;
+        required: boolean;
+      }>;
+      signerFields?: Array<{
+        name: string;
+        label: string;
+        type: string;
+        required: boolean;
+      }>;
+    };
 
-      // 根据字段类型转换值
-      let stringValue: string;
+    // 如果是新的 ProductFormFields 结构，只处理发起方字段
+    if (config.initiatorFields && Array.isArray(config.initiatorFields)) {
+      for (const fieldConfig of config.initiatorFields) {
+        const value = formData[fieldConfig.name];
+        
+        // 跳过空值
+        if (value === null || value === undefined || value === '') {
+          continue;
+        }
+
+        // 根据字段类型转换值
+        let stringValue: string;
+        
+        if (fieldConfig.type === 'date') {
+          // 日期类型：如果是 dayjs 对象，转换为 YYYY-MM-DD 格式
+          if (typeof value === 'object' && value !== null && 'format' in value) {
+            stringValue = (value as { format: (format: string) => string }).format('YYYY-MM-DD');
+          } else if (typeof value === 'string') {
+            stringValue = value;
+          } else {
+            stringValue = String(value);
+          }
+        } else if (fieldConfig.type === 'number') {
+          // 数字类型：转换为字符串
+          stringValue = String(value);
+        } else {
+          // 文本类型：直接转换为字符串
+          stringValue = String(value);
+        }
+
+        fields.push({
+          ComponentName: fieldConfig.name,
+          ComponentValue: stringValue,
+        });
+      }
       
-      if (config.type === 'date') {
-        // 日期类型：如果是 dayjs 对象，转换为 YYYY-MM-DD 格式
-        if (typeof value === 'object' && value !== null && 'format' in value) {
-          stringValue = (value as { format: (format: string) => string }).format('YYYY-MM-DD');
-        } else if (typeof value === 'string') {
-          stringValue = value;
+      return fields;
+    }
+
+    // 兼容旧的数组格式
+    if (Array.isArray(formFieldsConfig)) {
+      const oldConfig = formFieldsConfig as Array<{
+        name: string;
+        label: string;
+        type: string;
+        required: boolean;
+      }>;
+      
+      for (const fieldConfig of oldConfig) {
+        const value = formData[fieldConfig.name];
+        
+        if (value === null || value === undefined || value === '') {
+          continue;
+        }
+
+        let stringValue: string;
+        
+        if (fieldConfig.type === 'date') {
+          if (typeof value === 'object' && value !== null && 'format' in value) {
+            stringValue = (value as { format: (format: string) => string }).format('YYYY-MM-DD');
+          } else if (typeof value === 'string') {
+            stringValue = value;
+          } else {
+            stringValue = String(value);
+          }
+        } else if (fieldConfig.type === 'number') {
+          stringValue = String(value);
         } else {
           stringValue = String(value);
         }
-      } else if (config.type === 'number') {
-        // 数字类型：转换为字符串
-        stringValue = String(value);
-      } else {
-        // 文本类型：直接转换为字符串
-        stringValue = String(value);
-      }
 
-      fields.push({
-        ComponentName: config.name,
-        ComponentValue: stringValue,
-      });
-    }
-  } else {
-    // 如果没有配置，使用原来的逻辑（向后兼容）
-    for (const [key, value] of Object.entries(formData)) {
-      if (value !== null && value !== undefined && value !== '') {
         fields.push({
-          ComponentName: key,
-          ComponentValue: String(value),
+          ComponentName: fieldConfig.name,
+          ComponentValue: stringValue,
         });
       }
+      
+      return fields;
+    }
+  }
+
+  // 如果没有配置，使用原来的逻辑（向后兼容）
+  for (const [key, value] of Object.entries(formData)) {
+    if (value !== null && value !== undefined && value !== '') {
+      fields.push({
+        ComponentName: key,
+        ComponentValue: String(value),
+      });
     }
   }
 
@@ -266,25 +338,25 @@ export async function initiateContract(
     // 2. 创建签署流程 (CreateFlow)
     const approvers = buildApprovers(contract);
     const flowName = `${contract.Product.name} - ${contract.partyBName}`;
+    
+    // 设置合同有效期为 30 天
+    const deadline = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60;
 
     const createFlowResult = await esignService.createFlow({
       FlowName: flowName,
       Approvers: approvers,
       Unordered: false, // 有序签署：乙方先签，甲方后签
       FlowDescription: `合同编号: ${contract.contractNo}`,
+      Deadline: deadline, // 30 天有效期
     });
 
     flowId = createFlowResult.FlowId;
 
     // 3. 创建电子文档 (CreateDocument)
+    // buildFormFields 会自动处理新旧两种配置格式
     const formFields = buildFormFields(
       contract.formData as Record<string, unknown> | null,
-      contract.Product.formFields as Array<{
-        name: string;
-        label: string;
-        type: string;
-        required: boolean;
-      }> | null
+      contract.Product.formFields
     );
 
     await esignService.createDocument({
@@ -297,11 +369,14 @@ export async function initiateContract(
     // 4. 发起签署流程 (StartFlow)
     await esignService.startFlow(flowId);
 
-    // 5. 获取乙方签署链接 (CreateFlowSignUrl)
+    // 5. 获取甲方（客户）签署链接 (CreateFlowSignUrl)
+    // 注意：乙方（我们公司）是自动签署，不需要签署链接
+    // 这里获取的是甲方（客户）的签署链接，让客户扫码签署
     const signUrlResult = await esignService.createFlowSignUrl({
       FlowId: flowId,
       FlowApproverInfos: [
         {
+          // partyB* 变量存储的是甲方（客户）信息
           ApproverName: contract.partyBName,
           ApproverMobile: contract.partyBPhone,
           ApproverType:

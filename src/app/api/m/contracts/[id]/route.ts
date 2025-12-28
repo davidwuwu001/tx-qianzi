@@ -1,3 +1,7 @@
+/**
+ * 移动端合同详情 API
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
@@ -5,7 +9,7 @@ import prisma from '@/lib/prisma';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -14,24 +18,15 @@ export async function GET(
       return NextResponse.json({ error: '未登录' }, { status: 401 });
     }
 
-    const contract = await prisma.contract.findFirst({
-      where: {
-        id: params.id,
-        createdById: session.user.id,
-      },
+    const { id } = await params;
+
+    // 查询合同详情
+    const contract = await prisma.contract.findUnique({
+      where: { id },
       include: {
         Product: {
-          select: { name: true },
-        },
-        ContractStatusLog: {
-          orderBy: { createdAt: 'desc' },
           select: {
-            id: true,
-            fromStatus: true,
-            toStatus: true,
-            operatorName: true,
-            remark: true,
-            createdAt: true,
+            name: true,
           },
         },
       },
@@ -41,23 +36,24 @@ export async function GET(
       return NextResponse.json({ error: '合同不存在' }, { status: 404 });
     }
 
+    // 验证权限：只能查看自己创建的合同
+    if (contract.createdById !== session.user.id) {
+      return NextResponse.json({ error: '无权访问此合同' }, { status: 403 });
+    }
+
     return NextResponse.json({
-      id: contract.id,
-      contractNo: contract.contractNo,
-      partyBName: contract.partyBName,
-      partyBPhone: contract.partyBPhone,
-      partyBIdCard: contract.partyBIdCard,
-      status: contract.status,
-      signUrl: contract.signUrl,
-      signUrlExpireAt: contract.signUrlExpireAt,
-      createdAt: contract.createdAt,
-      updatedAt: contract.updatedAt,
-      completedAt: contract.completedAt,
-      rejectionReason: contract.rejectionReason,
-      product: {
-        name: contract.Product.name,
+      success: true,
+      data: {
+        id: contract.id,
+        contractNo: contract.contractNo,
+        partyBName: contract.partyBName,
+        partyBPhone: contract.partyBPhone,
+        status: contract.status,
+        createdAt: contract.createdAt.toISOString(),
+        completedAt: contract.completedAt?.toISOString() || null,
+        productName: contract.Product.name,
+        formData: contract.formData as Record<string, unknown> | null,
       },
-      statusLogs: contract.ContractStatusLog,
     });
   } catch (error) {
     console.error('获取合同详情失败:', error);

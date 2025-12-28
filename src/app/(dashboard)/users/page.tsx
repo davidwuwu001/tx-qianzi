@@ -531,7 +531,7 @@ export default function UsersPage() {
         onOk={handleModalOk}
         onCancel={handleModalCancel}
         confirmLoading={modalLoading}
-        destroyOnClose
+        destroyOnHidden
         width={500}
       >
         <Form

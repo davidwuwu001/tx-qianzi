@@ -7,13 +7,25 @@
  * - 禁用/启用产品
  * - 查询产品列表
  * - 城市-产品关联管理
+ * - 动态表单字段配置管理
  * 
  * Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6
+ * Requirements: 1.1, 1.2, 2.1, 2.2, 2.3, 3.1, 3.2, 3.4 (动态表单配置)
  */
 
 import { Product, Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { esignService } from './esign.service';
+import {
+  FormFieldConfig as NewFormFieldConfig,
+  ProductFormFields,
+  FieldType,
+  FieldFiller,
+  SelectOption,
+  FILLABLE_COMPONENT_TYPES,
+  SIGN_COMPONENT_TYPES,
+  COMPONENT_TYPE_MAP,
+} from '@/types/form-field';
 
 /**
  * 生成唯一ID
@@ -37,7 +49,8 @@ export class ProductServiceError extends Error {
 }
 
 /**
- * 表单字段配置
+ * 表单字段配置（旧版，保留兼容性）
+ * @deprecated 请使用 @/types/form-field 中的 FormFieldConfig
  */
 export interface FormFieldConfig {
   /** 字段名称（对应模板中的控件名） */
@@ -61,7 +74,8 @@ export interface CreateProductParams {
   name: string;
   description?: string;
   templateId: string;
-  formFields?: FormFieldConfig[];
+  /** 字段配置（使用新的 ProductFormFields 结构） */
+  formFields?: ProductFormFields;
   /** 关联的城市ID列表 */
   cityIds?: string[];
 }
@@ -73,7 +87,8 @@ export interface UpdateProductParams {
   name?: string;
   description?: string;
   templateId?: string;
-  formFields?: FormFieldConfig[];
+  /** 字段配置（使用新的 ProductFormFields 结构） */
+  formFields?: ProductFormFields;
   isActive?: boolean;
 }
 
@@ -96,7 +111,8 @@ export interface ProductListItem {
   name: string;
   description: string | null;
   templateId: string;
-  formFields: FormFieldConfig[] | null;
+  /** 字段配置（使用新的 ProductFormFields 结构） */
+  formFields: ProductFormFields | null;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -423,7 +439,7 @@ export async function getProducts(filters: ProductFilters = {}): Promise<Paginat
     name: product.name,
     description: product.description,
     templateId: product.templateId,
-    formFields: product.formFields as FormFieldConfig[] | null,
+    formFields: product.formFields as ProductFormFields | null,
     isActive: product.isActive,
     createdAt: product.createdAt,
     updatedAt: product.updatedAt,
@@ -582,4 +598,394 @@ export const productService = {
   updateProductCities,
   getProductCities,
   deleteProduct,
+  // 动态表单配置相关
+  validateFormFieldsConfig,
+  validateFormFieldConfig,
+  classifyFieldsByFiller,
+  getInitiatorFields,
+  filterFillableComponents,
+  convertComponentsToFormFields,
+  getTemplateFields,
+  mergeFieldConfigs,
 };
+
+// ============ 动态表单字段配置相关函数 ============
+
+/**
+ * 验证结果接口
+ */
+export interface ValidationResult {
+  valid: boolean;
+  errors: string[];
+}
+
+/**
+ * 验证单个字段配置
+ * @param config 字段配置
+ * @param index 字段索引（用于错误信息）
+ * @returns 验证结果
+ * 
+ * Requirements: 3.4
+ */
+export function validateFormFieldConfig(
+  config: unknown,
+  index?: number
+): ValidationResult {
+  const errors: string[] = [];
+  const prefix = index !== undefined ? `字段 ${index + 1}: ` : '';
+
+  // 检查是否为对象
+  if (typeof config !== 'object' || config === null) {
+    return { valid: false, errors: [`${prefix}配置必须是对象`] };
+  }
+
+  const c = config as Record<string, unknown>;
+
+  // 验证 name 属性
+  if (typeof c.name !== 'string' || c.name.trim().length === 0) {
+    errors.push(`${prefix}字段名(name)不能为空`);
+  }
+
+  // 验证 label 属性
+  if (typeof c.label !== 'string' || c.label.trim().length === 0) {
+    errors.push(`${prefix}显示名称(label)不能为空`);
+  }
+
+  // 验证 type 属性
+  const validTypes: FieldType[] = ['text', 'number', 'date', 'select'];
+  if (!validTypes.includes(c.type as FieldType)) {
+    errors.push(`${prefix}字段类型(type)无效，必须是 text/number/date/select 之一`);
+  }
+
+  // 验证 filler 属性
+  const validFillers: FieldFiller[] = ['INITIATOR', 'SIGNER'];
+  if (!validFillers.includes(c.filler as FieldFiller)) {
+    errors.push(`${prefix}填写方(filler)无效，必须是 INITIATOR 或 SIGNER`);
+  }
+
+  // 验证 required 属性
+  if (typeof c.required !== 'boolean') {
+    errors.push(`${prefix}是否必填(required)必须是布尔值`);
+  }
+
+  // 验证 select 类型必须有 options
+  if (c.type === 'select') {
+    if (!Array.isArray(c.options) || c.options.length === 0) {
+      errors.push(`${prefix}下拉字段必须配置选项(options)`);
+    } else {
+      // 验证每个选项
+      for (let i = 0; i < c.options.length; i++) {
+        const opt = c.options[i] as Record<string, unknown>;
+        if (typeof opt !== 'object' || opt === null) {
+          errors.push(`${prefix}选项 ${i + 1} 必须是对象`);
+        } else {
+          if (typeof opt.label !== 'string' || opt.label.trim().length === 0) {
+            errors.push(`${prefix}选项 ${i + 1} 的显示文本(label)不能为空`);
+          }
+          if (typeof opt.value !== 'string' || opt.value.trim().length === 0) {
+            errors.push(`${prefix}选项 ${i + 1} 的值(value)不能为空`);
+          }
+        }
+      }
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}
+
+/**
+ * 验证产品字段配置
+ * @param config 产品字段配置
+ * @returns 验证结果
+ * 
+ * Requirements: 3.4
+ */
+export function validateFormFieldsConfig(
+  config: unknown
+): ValidationResult {
+  const errors: string[] = [];
+
+  // 检查是否为对象
+  if (typeof config !== 'object' || config === null) {
+    return { valid: false, errors: ['配置必须是对象'] };
+  }
+
+  const c = config as Record<string, unknown>;
+
+  // 检查 initiatorFields 数组
+  if (!Array.isArray(c.initiatorFields)) {
+    errors.push('发起方字段(initiatorFields)必须是数组');
+  } else {
+    // 验证每个发起方字段
+    for (let i = 0; i < c.initiatorFields.length; i++) {
+      const field = c.initiatorFields[i];
+      const result = validateFormFieldConfig(field, i);
+      if (!result.valid) {
+        errors.push(...result.errors.map(e => `发起方字段 - ${e}`));
+      }
+      // 检查 filler 是否为 INITIATOR
+      if (typeof field === 'object' && field !== null) {
+        const f = field as Record<string, unknown>;
+        if (f.filler !== 'INITIATOR') {
+          errors.push(`发起方字段 ${i + 1}: 填写方必须是 INITIATOR`);
+        }
+      }
+    }
+  }
+
+  // 检查 signerFields 数组
+  if (!Array.isArray(c.signerFields)) {
+    errors.push('签署方字段(signerFields)必须是数组');
+  } else {
+    // 验证每个签署方字段
+    for (let i = 0; i < c.signerFields.length; i++) {
+      const field = c.signerFields[i];
+      const result = validateFormFieldConfig(field, i);
+      if (!result.valid) {
+        errors.push(...result.errors.map(e => `签署方字段 - ${e}`));
+      }
+      // 检查 filler 是否为 SIGNER
+      if (typeof field === 'object' && field !== null) {
+        const f = field as Record<string, unknown>;
+        if (f.filler !== 'SIGNER') {
+          errors.push(`签署方字段 ${i + 1}: 填写方必须是 SIGNER`);
+        }
+      }
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}
+
+/**
+ * 根据填写方分类字段
+ * @param fields 字段配置列表
+ * @returns 分类后的产品字段配置
+ * 
+ * Requirements: 3.2
+ */
+export function classifyFieldsByFiller(
+  fields: NewFormFieldConfig[]
+): ProductFormFields {
+  const initiatorFields: NewFormFieldConfig[] = [];
+  const signerFields: NewFormFieldConfig[] = [];
+
+  for (const field of fields) {
+    if (field.filler === 'INITIATOR') {
+      initiatorFields.push(field);
+    } else if (field.filler === 'SIGNER') {
+      signerFields.push(field);
+    }
+  }
+
+  return {
+    initiatorFields,
+    signerFields,
+  };
+}
+
+/**
+ * 从产品中获取发起方字段
+ * @param product 产品对象（包含 formFields）
+ * @returns 发起方字段列表
+ * 
+ * Requirements: 2.2, 2.3, 4.1
+ */
+export function getInitiatorFields(
+  product: { formFields?: unknown }
+): NewFormFieldConfig[] {
+  if (!product.formFields) {
+    return [];
+  }
+
+  // 尝试解析 formFields
+  let config: ProductFormFields;
+  
+  if (typeof product.formFields === 'string') {
+    try {
+      config = JSON.parse(product.formFields);
+    } catch {
+      return [];
+    }
+  } else {
+    config = product.formFields as ProductFormFields;
+  }
+
+  // 验证配置结构
+  if (!config || !Array.isArray(config.initiatorFields)) {
+    return [];
+  }
+
+  // 只返回 filler 为 INITIATOR 的字段
+  return config.initiatorFields.filter(
+    (field) => field.filler === 'INITIATOR'
+  );
+}
+
+
+// ============ 模板控件相关类型 ============
+
+/**
+ * 腾讯电子签模板控件
+ */
+export interface TemplateComponent {
+  ComponentId: string;
+  ComponentName: string;
+  ComponentType: string;
+  ComponentRequired: boolean;
+  ComponentValue?: string;
+  ComponentExtra?: string;
+}
+
+// ============ 模板字段获取和转换函数 ============
+
+/**
+ * 过滤出填写控件（排除签署控件）
+ * @param components 模板控件列表
+ * @returns 填写控件列表
+ * 
+ * Requirements: 1.2
+ */
+export function filterFillableComponents(
+  components: TemplateComponent[]
+): TemplateComponent[] {
+  return components.filter((component) => {
+    // 检查是否是填写控件类型
+    const isFillable = FILLABLE_COMPONENT_TYPES.includes(
+      component.ComponentType as typeof FILLABLE_COMPONENT_TYPES[number]
+    );
+    
+    // 检查是否是签署控件类型（需要排除）
+    const isSignComponent = SIGN_COMPONENT_TYPES.includes(
+      component.ComponentType as typeof SIGN_COMPONENT_TYPES[number]
+    );
+    
+    return isFillable && !isSignComponent;
+  });
+}
+
+/**
+ * 将模板控件转换为字段配置
+ * @param components 模板控件列表
+ * @returns 字段配置列表
+ * 
+ * Requirements: 1.2, 1.3
+ */
+export function convertComponentsToFormFields(
+  components: TemplateComponent[]
+): NewFormFieldConfig[] {
+  return components.map((component) => {
+    // 获取字段类型
+    const fieldType = COMPONENT_TYPE_MAP[component.ComponentType] || 'text';
+    
+    // 构建基础配置
+    const config: NewFormFieldConfig = {
+      name: component.ComponentName,
+      label: component.ComponentName, // 默认使用控件名作为显示名称
+      type: fieldType,
+      filler: 'INITIATOR', // 默认为发起方填写
+      required: component.ComponentRequired,
+      componentId: component.ComponentId,
+      componentType: component.ComponentType,
+    };
+    
+    // 如果有默认值
+    if (component.ComponentValue) {
+      config.defaultValue = component.ComponentValue;
+    }
+    
+    // 如果是 select 类型，尝试解析选项
+    if (fieldType === 'select' && component.ComponentExtra) {
+      try {
+        const extra = JSON.parse(component.ComponentExtra);
+        if (Array.isArray(extra.options)) {
+          config.options = extra.options.map((opt: string | { label: string; value: string }) => {
+            if (typeof opt === 'string') {
+              return { label: opt, value: opt };
+            }
+            return opt;
+          });
+        }
+      } catch {
+        // 解析失败，使用空选项
+        config.options = [];
+      }
+    }
+    
+    // 如果是 select 类型但没有选项，添加空数组
+    if (fieldType === 'select' && !config.options) {
+      config.options = [];
+    }
+    
+    return config;
+  });
+}
+
+/**
+ * 从腾讯电子签获取模板字段配置
+ * @param templateId 模板ID
+ * @returns 字段配置列表
+ * 
+ * Requirements: 1.1, 1.2, 1.3
+ */
+export async function getTemplateFields(
+  templateId: string
+): Promise<NewFormFieldConfig[]> {
+  // 调用腾讯电子签 API 获取模板详情
+  const template = await esignService.describeFlowTemplates(templateId);
+  
+  // 过滤出填写控件
+  const fillableComponents = filterFillableComponents(template.Components);
+  
+  // 转换为字段配置
+  return convertComponentsToFormFields(fillableComponents);
+}
+
+/**
+ * 合并字段配置（保留已有配置的自定义属性）
+ * @param existingFields 已有字段配置
+ * @param newFields 新获取的字段配置
+ * @returns 合并后的字段配置
+ * 
+ * Requirements: 6.5
+ */
+export function mergeFieldConfigs(
+  existingFields: NewFormFieldConfig[],
+  newFields: NewFormFieldConfig[]
+): NewFormFieldConfig[] {
+  // 创建已有字段的映射（按 name 索引）
+  const existingMap = new Map<string, NewFormFieldConfig>();
+  for (const field of existingFields) {
+    existingMap.set(field.name, field);
+  }
+  
+  // 合并字段
+  return newFields.map((newField) => {
+    const existing = existingMap.get(newField.name);
+    
+    if (existing) {
+      // 保留已有配置的自定义属性，更新模板信息
+      return {
+        ...newField,
+        label: existing.label, // 保留自定义显示名称
+        filler: existing.filler, // 保留填写方设置
+        required: existing.required, // 保留必填设置
+        defaultValue: existing.defaultValue, // 保留默认值
+        placeholder: existing.placeholder, // 保留占位提示
+        options: existing.options || newField.options, // 保留选项配置
+        // 更新模板信息
+        componentId: newField.componentId,
+        componentType: newField.componentType,
+      };
+    }
+    
+    // 新字段，直接使用
+    return newField;
+  });
+}

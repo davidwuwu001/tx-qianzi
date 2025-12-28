@@ -18,6 +18,7 @@ import {
   Select,
   Tooltip,
   App,
+  Divider,
 } from 'antd';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import {
@@ -31,6 +32,7 @@ import {
   AppstoreOutlined,
   FileTextOutlined,
   SettingOutlined,
+  CloudDownloadOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import {
@@ -43,6 +45,9 @@ import {
   getProductDetailAction,
 } from './actions';
 import { getActiveCitiesAction } from '../cities/actions';
+import FormFieldsEditor from '@/components/product/FormFieldsEditor';
+import type { FormFieldConfig, ProductFormFields } from '@/types/form-field';
+import { mergeFieldConfigs, classifyFieldsByFiller } from '@/services/product.service';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -93,6 +98,9 @@ export default function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState<ProductListItem | null>(null);
   const [loadingTemplateFields, setLoadingTemplateFields] = useState(false);
   const [form] = Form.useForm();
+
+  // 字段配置状态（使用可视化编辑器）
+  const [formFields, setFormFields] = useState<FormFieldConfig[]>([]);
 
   // 城市关联弹窗
   const [cityModalVisible, setCityModalVisible] = useState(false);
@@ -169,6 +177,7 @@ export default function ProductsPage() {
   const handleAdd = () => {
     setEditingProduct(null);
     form.resetFields();
+    setFormFields([]);
     setModalVisible(true);
   };
 
@@ -179,8 +188,25 @@ export default function ProductsPage() {
       name: product.name,
       description: product.description,
       templateId: product.templateId,
-      formFields: product.formFields ? JSON.stringify(product.formFields, null, 2) : '',
     });
+    
+    // 解析已有的字段配置
+    if (product.formFields) {
+      try {
+        const config = product.formFields as ProductFormFields;
+        // 合并发起方和签署方字段
+        const allFields = [
+          ...(config.initiatorFields || []),
+          ...(config.signerFields || []),
+        ];
+        setFormFields(allFields);
+      } catch {
+        setFormFields([]);
+      }
+    } else {
+      setFormFields([]);
+    }
+    
     setModalVisible(true);
   };
 
@@ -189,6 +215,7 @@ export default function ProductsPage() {
     setModalVisible(false);
     setEditingProduct(null);
     form.resetFields();
+    setFormFields([]);
     setLoadingTemplateFields(false);
   };
 
@@ -209,12 +236,8 @@ export default function ProductsPage() {
         // 显示详细的错误信息
         let errorMessage = data.error || '获取模板字段失败';
         
-        // 如果是权限错误，显示详细的诊断信息
-        if (data.details && data.details.code === 'OperationDenied.Forbid') {
-          const suggestions = data.details.suggestions || [];
-          errorMessage = `${errorMessage}\n\n可能的原因：\n${suggestions.map((s: string, i: number) => `${i + 1}. ${s}`).join('\n')}`;
-          
-          // 使用 Modal 显示详细错误信息
+        // 如果有解决建议，显示详细信息
+        if (data.suggestions && data.suggestions.length > 0) {
           Modal.error({
             title: '获取模板字段配置失败',
             content: (
@@ -223,20 +246,10 @@ export default function ProductsPage() {
                 <div style={{ marginTop: 12 }}>
                   <p style={{ marginBottom: 8, fontWeight: 'bold' }}>可能的原因：</p>
                   <ul style={{ marginLeft: 20, lineHeight: '1.8' }}>
-                    {suggestions.map((suggestion: string, index: number) => (
+                    {data.suggestions.map((suggestion: string, index: number) => (
                       <li key={index}>{suggestion}</li>
                     ))}
                   </ul>
-                </div>
-                <div style={{ marginTop: 16, padding: 12, backgroundColor: '#f5f5f5', borderRadius: 4 }}>
-                  <p style={{ marginBottom: 4, fontWeight: 'bold' }}>解决步骤：</p>
-                  <ol style={{ marginLeft: 20, lineHeight: '1.8' }}>
-                    <li>登录 <a href="https://qian.tencent.com" target="_blank" rel="noopener noreferrer">腾讯电子签控制台</a></li>
-                    <li>进入&ldquo;企业中心&rdquo; → &ldquo;员工管理&rdquo;，确认操作人ID是否正确</li>
-                    <li>确认操作人状态为&ldquo;已激活&rdquo;且未被禁用</li>
-                    <li>确认该操作人有权限访问该模板（模板所属企业需与操作人企业一致）</li>
-                    <li>确认模板ID是否正确（可在控制台的&ldquo;模板管理&rdquo;中查看）</li>
-                  </ol>
                 </div>
               </div>
             ),
@@ -248,17 +261,18 @@ export default function ProductsPage() {
         return;
       }
 
-      if (!data.data.formFields || data.data.formFields.length === 0) {
+      if (!data.data.fields || data.data.fields.length === 0) {
         message.info('该模板没有需要填写的字段控件');
-        form.setFieldValue('formFields', '');
+        setFormFields([]);
         return;
       }
 
-      // 将字段配置转换为 JSON 字符串并填充到表单
-      const formFieldsJson = JSON.stringify(data.data.formFields, null, 2);
-      form.setFieldValue('formFields', formFieldsJson);
+      // 合并新获取的字段和已有配置
+      const newFields = data.data.fields as FormFieldConfig[];
+      const mergedFields = mergeFieldConfigs(formFields, newFields);
+      setFormFields(mergedFields);
       
-      message.success(`成功获取 ${data.data.formFields.length} 个字段配置`);
+      message.success(`成功获取 ${newFields.length} 个字段配置`);
     } catch (error) {
       console.error('获取模板字段失败:', error);
       message.error('获取模板字段失败，请检查网络连接和模板ID是否正确');
@@ -273,17 +287,8 @@ export default function ProductsPage() {
       const values = await form.validateFields();
       setModalLoading(true);
 
-      // 解析 formFields JSON
-      let formFields = null;
-      if (values.formFields && values.formFields.trim()) {
-        try {
-          formFields = JSON.parse(values.formFields);
-        } catch {
-          message.error('表单字段配置格式错误，请检查 JSON 格式');
-          setModalLoading(false);
-          return;
-        }
-      }
+      // 将字段配置按填写方分类
+      const productFormFields: ProductFormFields = classifyFieldsByFiller(formFields);
 
       let result;
       if (editingProduct) {
@@ -292,7 +297,7 @@ export default function ProductsPage() {
           name: values.name,
           description: values.description,
           templateId: values.templateId,
-          formFields,
+          formFields: productFormFields,
         });
       } else {
         // 新增
@@ -300,7 +305,7 @@ export default function ProductsPage() {
           name: values.name,
           description: values.description,
           templateId: values.templateId,
-          formFields,
+          formFields: productFormFields,
           cityIds: values.cityIds,
         });
       }
@@ -625,8 +630,7 @@ export default function ProductsPage() {
         onOk={handleModalOk}
         onCancel={handleModalCancel}
         confirmLoading={modalLoading}
-        destroyOnClose
-        width={600}
+        width={900}
       >
         <Form
           form={form}
@@ -650,22 +654,9 @@ export default function ProductsPage() {
             rules={[
               { required: true, message: '请输入模板ID' },
             ]}
-            extra="在腾讯电子签控制台获取模板ID，输入后可以点击右侧按钮自动获取字段配置"
+            extra="在腾讯电子签控制台获取模板ID"
           >
-            <Space.Compact style={{ width: '100%' }}>
-              <Input
-                placeholder="请输入腾讯电子签模板ID"
-                style={{ flex: 1 }}
-              />
-              <Button
-                type="primary"
-                loading={loadingTemplateFields}
-                onClick={handleFetchTemplateFields}
-                disabled={!form.getFieldValue('templateId')}
-              >
-                获取字段配置
-              </Button>
-            </Space.Compact>
+            <Input placeholder="请输入腾讯电子签模板ID" />
           </Form.Item>
 
           <Form.Item
@@ -677,30 +668,46 @@ export default function ProductsPage() {
           >
             <TextArea
               placeholder="请输入产品描述（可选）"
-              rows={3}
+              rows={2}
               showCount
               maxLength={500}
             />
           </Form.Item>
 
-          <Form.Item
-            name="formFields"
-            label="表单字段配置"
-            extra="配置发起签约时需要填写的字段，JSON 格式"
-            tooltip="示例：{&quot;fields&quot;:[{&quot;name&quot;:&quot;projectName&quot;,&quot;label&quot;:&quot;项目名称&quot;,&quot;type&quot;:&quot;text&quot;,&quot;required&quot;:true}]}"
-          >
-            <TextArea
-              placeholder='{"fields":[{"name":"projectName","label":"项目名称","type":"text","required":true}]}'
-              rows={6}
-              style={{ fontFamily: 'monospace', fontSize: '12px' }}
-            />
-          </Form.Item>
+          <Divider style={{ marginTop: 24, marginBottom: 16 }}>
+            <Space>
+              <span>字段配置</span>
+              <Button
+                type="primary"
+                size="small"
+                icon={<CloudDownloadOutlined />}
+                loading={loadingTemplateFields}
+                onClick={handleFetchTemplateFields}
+              >
+                获取模板字段
+              </Button>
+            </Space>
+          </Divider>
+
+          <div style={{ marginBottom: 16 }}>
+            <Typography.Text type="secondary">
+              配置发起签约时需要填写的字段。&ldquo;发起方填写&rdquo;的字段由普通用户在移动端填写，&ldquo;签署方填写&rdquo;的字段由乙方在签署页面填写。
+            </Typography.Text>
+          </div>
+
+          <FormFieldsEditor
+            value={formFields}
+            onChange={setFormFields}
+            loading={loadingTemplateFields}
+            onRefresh={handleFetchTemplateFields}
+          />
 
           {!editingProduct && (
             <Form.Item
               name="cityIds"
               label="关联城市"
               extra="选择可以使用此产品的城市"
+              style={{ marginTop: 16 }}
             >
               <Select
                 mode="multiple"
@@ -723,7 +730,6 @@ export default function ProductsPage() {
         onOk={handleCityModalOk}
         onCancel={handleCityModalCancel}
         confirmLoading={cityModalLoading}
-        destroyOnClose
       >
         <div className="py-4">
           <Text type="secondary" className="mb-4 block">

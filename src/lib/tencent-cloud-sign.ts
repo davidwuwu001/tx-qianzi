@@ -10,11 +10,16 @@ import crypto from "crypto";
 // 环境变量配置
 const TENCENT_SECRET_ID = process.env.TENCENT_SECRET_ID || "";
 const TENCENT_SECRET_KEY = process.env.TENCENT_SECRET_KEY || "";
+const ESIGN_ENV = process.env.TENCENT_ESIGN_ENV || "prod"; // test 或 prod
 
 // 签名算法常量
 const ALGORITHM = "TC3-HMAC-SHA256";
-const SERVICE = "ess"; // 电子签服务
-const HOST = "ess.tencentcloudapi.com";
+const SERVICE = "ess"; // 电子签服务（企业版和联调环境都用 ess）
+
+// 根据环境选择 API 地址
+// 联调环境：ess.test.ess.tencent.cn（企业版联调环境）
+// 正式环境：ess.tencentcloudapi.com
+const HOST = ESIGN_ENV === "test" ? "ess.test.ess.tencent.cn" : "ess.tencentcloudapi.com";
 const CONTENT_TYPE = "application/json; charset=utf-8";
 
 /**
@@ -216,11 +221,15 @@ export function getTencentCloudConfig(): {
   configured: boolean;
   secretIdSet: boolean;
   secretKeySet: boolean;
+  environment: string;
+  host: string;
 } {
   return {
     configured: Boolean(TENCENT_SECRET_ID && TENCENT_SECRET_KEY),
     secretIdSet: Boolean(TENCENT_SECRET_ID),
     secretKeySet: Boolean(TENCENT_SECRET_KEY),
+    environment: ESIGN_ENV === "test" ? "联调环境" : "正式环境",
+    host: HOST,
   };
 }
 

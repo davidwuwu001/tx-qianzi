@@ -19,7 +19,9 @@ export interface ProductInfo {
 interface ProductSelectProps {
   cityId: string;
   value?: string;
-  onChange?: (productId: string, product: ProductInfo | null) => void;
+  onChange?: (productId: string) => void;
+  /** 产品信息变化回调（用于父组件获取完整产品信息） */
+  onProductChange?: (product: ProductInfo | null) => void;
   disabled?: boolean;
 }
 
@@ -33,6 +35,7 @@ export default function ProductSelect({
   cityId,
   value,
   onChange,
+  onProductChange,
   disabled = false,
 }: ProductSelectProps) {
   const [products, setProducts] = useState<ProductInfo[]>([]);
@@ -83,7 +86,10 @@ export default function ProductSelect({
   const handleChange = (productId: string) => {
     const product = products.find((p) => p.id === productId);
     setSelectedProduct(product || null);
-    onChange?.(productId, product || null);
+    // 调用 onChange，只传递 productId（给 Ant Design Form 用）
+    onChange?.(productId);
+    // 调用 onProductChange，传递完整产品信息（给父组件用）
+    onProductChange?.(product || null);
   };
 
   return (

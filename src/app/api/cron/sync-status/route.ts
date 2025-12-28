@@ -117,6 +117,11 @@ function verifyAuthorization(request: NextRequest): boolean {
     return true;
   }
 
+  // 开发环境下跳过验证
+  if (process.env.NODE_ENV === 'development') {
+    return true;
+  }
+
   // 检查 Authorization header
   const authHeader = request.headers.get('authorization');
   if (authHeader) {

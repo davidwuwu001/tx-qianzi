@@ -8,8 +8,8 @@ import {
   CreateProductParams,
   UpdateProductParams,
   ProductServiceError,
-  FormFieldConfig,
 } from '@/services/product.service';
+import type { ProductFormFields } from '@/types/form-field';
 
 /**
  * 产品列表项类型
@@ -19,7 +19,7 @@ interface ProductListItemResponse {
   name: string;
   description: string | null;
   templateId: string;
-  formFields: FormFieldConfig[] | null;
+  formFields: ProductFormFields | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -46,7 +46,7 @@ interface ProductResponse {
   name: string;
   description: string | null;
   templateId: string;
-  formFields: FormFieldConfig[] | null;
+  formFields: ProductFormFields | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -182,7 +182,7 @@ export async function getProductDetailAction(
         name: product.name,
         description: product.description,
         templateId: product.templateId,
-        formFields: product.formFields as FormFieldConfig[] | null,
+        formFields: product.formFields as ProductFormFields | null,
         isActive: product.isActive,
         createdAt: product.createdAt.toISOString(),
         updatedAt: product.updatedAt.toISOString(),
@@ -236,7 +236,7 @@ export async function createProductAction(
         name: product.name,
         description: product.description,
         templateId: product.templateId,
-        formFields: product.formFields as FormFieldConfig[] | null,
+        formFields: product.formFields as ProductFormFields | null,
         isActive: product.isActive,
         createdAt: product.createdAt.toISOString(),
         updatedAt: product.updatedAt.toISOString(),
@@ -289,7 +289,7 @@ export async function updateProductAction(
         name: product.name,
         description: product.description,
         templateId: product.templateId,
-        formFields: product.formFields as FormFieldConfig[] | null,
+        formFields: product.formFields as ProductFormFields | null,
         isActive: product.isActive,
         createdAt: product.createdAt.toISOString(),
         updatedAt: product.updatedAt.toISOString(),
@@ -329,7 +329,7 @@ export async function toggleProductStatusAction(
         name: product.name,
         description: product.description,
         templateId: product.templateId,
-        formFields: product.formFields as FormFieldConfig[] | null,
+        formFields: product.formFields as ProductFormFields | null,
         isActive: product.isActive,
         createdAt: product.createdAt.toISOString(),
         updatedAt: product.updatedAt.toISOString(),

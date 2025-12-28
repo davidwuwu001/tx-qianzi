@@ -435,7 +435,7 @@ export default function CitiesPage() {
         onOk={handleModalOk}
         onCancel={handleModalCancel}
         confirmLoading={modalLoading}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form
           form={form}

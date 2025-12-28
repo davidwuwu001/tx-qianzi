@@ -16,26 +16,21 @@ export async function loginWithPassword(
   password: string
 ): Promise<AuthResult> {
   try {
-    // 开发环境管理员账号 - 仅在环境变量设置时生效
+    // 开发环境管理员账号 - 仅在环境变量设置时生效，不需要数据库验证
     const devAdminUsername = process.env.DEV_ADMIN_USERNAME;
     const devAdminPassword = process.env.DEV_ADMIN_PASSWORD;
     if (devAdminUsername && devAdminPassword && 
         username === devAdminUsername && password === devAdminPassword) {
-      // 查找系统管理员用户
-      const adminUser = await prisma.user.findFirst({
-        where: { role: 'SYSTEM_ADMIN' },
-      });
-      if (adminUser) {
-        const authUser: AuthUser = {
-          id: adminUser.id,
-          username: adminUser.username,
-          name: adminUser.name,
-          phone: adminUser.phone,
-          role: adminUser.role,
-          cityId: adminUser.cityId,
-        };
-        return { success: true, user: authUser };
-      }
+      // 直接返回虚拟的系统管理员用户，不查询数据库
+      const authUser: AuthUser = {
+        id: 'dev-admin',
+        username: devAdminUsername,
+        name: '开发管理员',
+        phone: '00000000000',
+        role: 'SYSTEM_ADMIN',
+        cityId: null,
+      };
+      return { success: true, user: authUser };
     }
 
     const user = await prisma.user.findUnique({

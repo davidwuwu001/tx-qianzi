@@ -64,4 +64,10 @@ export interface FlowInfo {
   FlowId: string;
   FlowStatus: number;
   FlowMessage: string;
+  // 签署方信息列表
+  FlowApproverInfos?: Array<{
+    ApproveStatus: number;  // 0-待签署, 1-待填写, 2-待确认, 3-已签署, 4-已拒签
+    ApproveType: string;
+    ApproveName: string;
+  }>;
 }

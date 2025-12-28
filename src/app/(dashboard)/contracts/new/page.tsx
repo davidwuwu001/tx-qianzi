@@ -74,12 +74,6 @@ export default function NewContractPage() {
   const user = session?.user;
   const cityId = user?.cityId;
 
-  // 处理产品选择
-  const handleProductChange = (productId: string, product: ProductInfo | null) => {
-    form.setFieldValue('productId', productId);
-    setSelectedProduct(product);
-  };
-
   // 下一步
   const handleNext = async () => {
     try {
@@ -236,8 +230,7 @@ export default function NewContractPage() {
             >
               <ProductSelect
                 cityId={cityId || ''}
-                value={form.getFieldValue('productId')}
-                onChange={handleProductChange}
+                onProductChange={setSelectedProduct}
               />
             </Form.Item>
           </div>

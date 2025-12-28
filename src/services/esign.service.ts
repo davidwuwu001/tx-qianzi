@@ -63,6 +63,7 @@ export class EsignApiError extends Error {
 const ERROR_MESSAGES: Record<string, string> = {
   FailedOperation: "操作失败，请稍后重试",
   InvalidParameter: "参数错误，请检查输入",
+  "InvalidParameter.CardNumber": "身份证号与姓名不匹配，请确保输入真实的身份证号和姓名",
   "ResourceNotFound.Flow": "签署流程不存在",
   "OperationDenied.NoPermissionFeature": "功能权限不足，请联系管理员",
   InternalError: "系统内部错误，请稍后重试",
@@ -218,6 +219,8 @@ export enum ApproverType {
   ENTERPRISE = 0,
   /** 个人签署方 */
   PERSONAL = 1,
+  /** 企业静默签（自动签署） */
+  ENTERPRISE_AUTO = 3,
 }
 
 /**
@@ -274,6 +277,8 @@ export interface CreateFlowParams {
   FlowType?: string;
   /** 自动签署配置（企业自动签署时需要） */
   AutoSignScene?: string;
+  /** 合同签署截止时间（Unix时间戳，单位秒） */
+  Deadline?: number;
 }
 
 /**
@@ -392,6 +397,15 @@ export const esignService = {
     if (params.AutoSignScene) {
       payload.AutoSignScene = params.AutoSignScene;
     }
+    
+    // 设置合同签署截止时间
+    if (params.Deadline) {
+      payload.Deadline = params.Deadline;
+    }
+
+    // 调试日志：打印发送给腾讯电子签的参数
+    console.log('=== CreateFlow API 请求参数 ===');
+    console.log(JSON.stringify(payload, null, 2));
 
     const response = await callApiWithRetry<{ FlowId: string }>(
       "CreateFlow",
@@ -489,11 +503,33 @@ export const esignService = {
       FlowApproverUrlInfos: FlowApproverUrlInfo[];
     }>("CreateFlowSignUrl", payload);
 
+    // 调试日志：查看完整返回数据
+    console.log('=== CreateFlowSignUrl 返回数据 ===');
+    console.log(JSON.stringify(response, null, 2));
+
+    // 检查返回数据
+    if (!response.FlowApproverUrlInfos || response.FlowApproverUrlInfos.length === 0) {
+      throw new EsignApiError(
+        'SIGN_URL_NOT_FOUND',
+        '未获取到签署链接，请检查签署方信息是否正确',
+        ''
+      );
+    }
+
     // 返回第一个签署方的链接信息
     const urlInfo = response.FlowApproverUrlInfos[0];
+    
+    // 处理过期时间：如果没有返回过期时间，默认30分钟后过期
+    let expireTime = urlInfo.SignUrlExpireTime;
+    if (!expireTime || isNaN(expireTime) || expireTime <= 0) {
+      // 默认30分钟后过期
+      expireTime = Math.floor(Date.now() / 1000) + 30 * 60;
+      console.log('SignUrlExpireTime 无效，使用默认值:', expireTime);
+    }
+    
     return {
       SignUrl: urlInfo.SignUrl,
-      ExpireTime: urlInfo.SignUrlExpireTime,
+      ExpireTime: expireTime,
     };
   },
 
@@ -511,19 +547,39 @@ export const esignService = {
       FlowIds: [flowId],
     };
 
+    // 腾讯电子签返回的字段名是 FlowDetailInfos（不是 FlowInfos）
     const response = await callApiWithRetry<{
-      FlowInfos: Array<{
+      FlowDetailInfos?: Array<{
         FlowId: string;
         FlowStatus: number;
         FlowMessage: string;
+        FlowApproverInfos?: Array<{
+          ApproveStatus: number;
+          ApproveType: string;
+          ApproveName: string;
+        }>;
       }>;
     }>("DescribeFlowInfo", payload);
 
-    const flowInfo = response.FlowInfos[0];
+    // 调试日志
+    console.log('=== DescribeFlowInfo 返回数据 ===');
+    console.log(JSON.stringify(response, null, 2));
+
+    // 检查返回数据
+    if (!response.FlowDetailInfos || response.FlowDetailInfos.length === 0) {
+      throw new EsignApiError(
+        'FLOW_NOT_FOUND',
+        `未找到流程信息: ${flowId}`,
+        ''
+      );
+    }
+
+    const flowInfo = response.FlowDetailInfos[0];
     return {
       FlowId: flowInfo.FlowId,
       FlowStatus: flowInfo.FlowStatus,
       FlowMessage: flowInfo.FlowMessage,
+      FlowApproverInfos: flowInfo.FlowApproverInfos,
     };
   },
 
@@ -618,6 +674,53 @@ export const esignService = {
       TemplateId: template.TemplateId,
       TemplateName: template.TemplateName,
       Components: template.Components || [],
+    };
+  },
+
+  /**
+   * 获取合同文件下载链接
+   * 
+   * 用于下载签署完成的合同 PDF 文件
+   *
+   * @param flowId 签署流程ID
+   * @returns 文件下载链接
+   */
+  async getContractFileUrl(flowId: string): Promise<{
+    FileUrl: string;
+    ExpireTime: number;
+  }> {
+    const payload = {
+      Operator: {
+        UserId: OPERATOR_ID,
+      },
+      BusinessType: 'FLOW',
+      BusinessIds: [flowId],
+      FileType: 'PDF',
+    };
+
+    const response = await callApiWithRetry<{
+      FileUrls?: Array<{
+        Url: string;
+        ExpiredTime: number;
+      }>;
+    }>('DescribeFileUrls', payload);
+
+    // 调试日志
+    console.log('=== DescribeFileUrls 返回数据 ===');
+    console.log(JSON.stringify(response, null, 2));
+
+    if (!response.FileUrls || response.FileUrls.length === 0) {
+      throw new EsignApiError(
+        'FILE_NOT_FOUND',
+        '未找到合同文件，请确认合同已签署完成',
+        ''
+      );
+    }
+
+    const fileInfo = response.FileUrls[0];
+    return {
+      FileUrl: fileInfo.Url,
+      ExpireTime: fileInfo.ExpiredTime,
     };
   },
 };

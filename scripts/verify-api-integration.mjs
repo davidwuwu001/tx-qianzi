@@ -7,10 +7,23 @@
  */
 
 import crypto from "crypto";
+import { config } from "dotenv";
 
-// 模拟环境变量（实际运行时会从 .env 读取）
-const MOCK_SECRET_ID = "test-secret-id";
-const MOCK_SECRET_KEY = "test-secret-key";
+// 加载环境变量
+config();
+
+// 从环境变量读取配置
+const SECRET_ID = process.env.TENCENT_SECRET_ID || "";
+const SECRET_KEY = process.env.TENCENT_SECRET_KEY || "";
+const OPERATOR_ID = process.env.TENCENT_ESIGN_OPERATOR_ID || "";
+const TEMPLATE_ID = process.env.TENCENT_ESIGN_TEMPLATE_ID || "";
+const ESIGN_ENV = process.env.TENCENT_ESIGN_ENV || "prod";
+
+// 根据环境选择 API 地址
+// 联调环境：ess.test.ess.tencent.cn（企业版联调环境）
+// 正式环境：ess.tencentcloudapi.com
+const HOST = ESIGN_ENV === "test" ? "ess.test.ess.tencent.cn" : "ess.tencentcloudapi.com";
+const SERVICE = "ess"; // 企业版和联调环境都用 ess
 
 /**
  * 验证 TC3-HMAC-SHA256 签名算法
@@ -31,7 +44,8 @@ function verifySignatureAlgorithm() {
     // 测试签名链
     const date = "2024-01-01";
     const service = "ess";
-    const secretDate = crypto.createHmac("sha256", `TC3${MOCK_SECRET_KEY}`).update(date).digest();
+    const testKey = SECRET_KEY || "test-key";
+    const secretDate = crypto.createHmac("sha256", `TC3${testKey}`).update(date).digest();
     const secretService = crypto.createHmac("sha256", secretDate).update(service).digest();
     const secretSigning = crypto.createHmac("sha256", secretService).update("tc3_request").digest();
     const signature = crypto.createHmac("sha256", secretSigning).update("test-string-to-sign").digest("hex");
@@ -95,7 +109,9 @@ function verifySignRequestBuilder() {
     console.log(`✓ 待签名字符串构建成功`);
     
     // 计算签名
-    const secretDate = crypto.createHmac("sha256", `TC3${MOCK_SECRET_KEY}`).update(date).digest();
+    const testKey = SECRET_KEY || "test-key";
+    const testId = SECRET_ID || "test-id";
+    const secretDate = crypto.createHmac("sha256", `TC3${testKey}`).update(date).digest();
     const secretService = crypto.createHmac("sha256", secretDate).update("ess").digest();
     const secretSigning = crypto.createHmac("sha256", secretService).update("tc3_request").digest();
     const signature = crypto.createHmac("sha256", secretSigning).update(stringToSign).digest("hex");
@@ -103,7 +119,7 @@ function verifySignRequestBuilder() {
     console.log(`✓ 签名计算成功: ${signature.substring(0, 16)}...`);
     
     // 构建 Authorization 头
-    const authHeader = `TC3-HMAC-SHA256 Credential=${MOCK_SECRET_ID}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+    const authHeader = `TC3-HMAC-SHA256 Credential=${testId}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
     console.log(`✓ Authorization 头构建成功: ${authHeader.substring(0, 40)}...`);
     
     return true;
@@ -168,10 +184,26 @@ function verifyErrorHandling() {
 /**
  * 主函数
  */
-function main() {
+async function main() {
   console.log("========================================");
   console.log("腾讯电子签 API 集成验证");
   console.log("========================================");
+  
+  // 显示当前环境配置
+  console.log("\n=== 当前环境配置 ===");
+  console.log(`环境: ${ESIGN_ENV === "test" ? "联调环境 (test)" : "正式环境 (prod)"}`);
+  console.log(`API 地址: ${HOST}`);
+  console.log(`SecretId: ${SECRET_ID ? SECRET_ID.substring(0, 10) + "..." : "未配置"}`);
+  console.log(`SecretKey: ${SECRET_KEY ? "已配置" : "未配置"}`);
+  console.log(`操作人ID: ${OPERATOR_ID ? OPERATOR_ID.substring(0, 10) + "..." : "未配置"}`);
+  console.log(`模板ID: ${TEMPLATE_ID ? TEMPLATE_ID.substring(0, 10) + "..." : "未配置"}`);
+  
+  if (ESIGN_ENV === "test") {
+    console.log("\n📌 联调环境说明:");
+    console.log("   - 联调环境控制台: https://beta.qian.tencent.cn");
+    console.log("   - 联调环境使用专用的 SecretId/SecretKey（不是腾讯云 AKID 开头的密钥）");
+    console.log("   - 在电子签控制台 → 应用集成 → 自建应用 → 测试联调 中获取");
+  }
   
   const results = [];
   
@@ -199,6 +231,18 @@ function main() {
     passed: verifyErrorHandling(),
   });
   
+  // 5. 如果配置了密钥，尝试真实 API 调用
+  if (SECRET_ID && SECRET_KEY && OPERATOR_ID && TEMPLATE_ID) {
+    console.log("\n=== 测试真实 API 调用 ===");
+    const apiResult = await testRealApiCall();
+    results.push({
+      name: "真实 API 调用",
+      passed: apiResult,
+    });
+  } else {
+    console.log("\n⚠️ 跳过真实 API 调用测试（缺少必要配置）");
+  }
+  
   // 输出总结
   console.log("\n========================================");
   console.log("验证结果总结");
@@ -221,6 +265,115 @@ function main() {
     process.exit(1);
   }
   console.log("========================================\n");
+}
+
+/**
+ * 测试真实 API 调用
+ */
+async function testRealApiCall() {
+  try {
+    const timestamp = Math.floor(Date.now() / 1000);
+    const date = formatDate(timestamp);
+    
+    // 构建查询模板的请求
+    const payload = {
+      Operator: {
+        UserId: OPERATOR_ID,
+      },
+      Filters: [
+        {
+          Key: "template-id",
+          Values: [TEMPLATE_ID],
+        },
+      ],
+    };
+    
+    const body = JSON.stringify(payload);
+    const hashedPayload = crypto.createHash("sha256").update(body, "utf8").digest("hex");
+    
+    const action = "DescribeFlowTemplates";
+    const contentType = "application/json; charset=utf-8";
+    const canonicalHeaders = `content-type:${contentType}\nhost:${HOST}\nx-tc-action:${action.toLowerCase()}\n`;
+    const signedHeaders = "content-type;host;x-tc-action";
+    
+    const canonicalRequest = [
+      "POST",
+      "/",
+      "",
+      canonicalHeaders,
+      signedHeaders,
+      hashedPayload,
+    ].join("\n");
+    
+    const credentialScope = `${date}/${SERVICE}/tc3_request`;
+    const hashedCanonicalRequest = crypto.createHash("sha256").update(canonicalRequest, "utf8").digest("hex");
+    
+    const stringToSign = [
+      "TC3-HMAC-SHA256",
+      timestamp,
+      credentialScope,
+      hashedCanonicalRequest,
+    ].join("\n");
+    
+    const secretDate = crypto.createHmac("sha256", `TC3${SECRET_KEY}`).update(date).digest();
+    const secretService = crypto.createHmac("sha256", secretDate).update(SERVICE).digest();
+    const secretSigning = crypto.createHmac("sha256", secretService).update("tc3_request").digest();
+    const signature = crypto.createHmac("sha256", secretSigning).update(stringToSign).digest("hex");
+    
+    const authorization = `TC3-HMAC-SHA256 Credential=${SECRET_ID}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+    
+    const headers = {
+      "Content-Type": contentType,
+      "Host": HOST,
+      "X-TC-Action": action,
+      "X-TC-Version": "2020-11-11",
+      "X-TC-Timestamp": String(timestamp),
+      "Authorization": authorization,
+    };
+    
+    console.log(`正在调用 ${action} API...`);
+    console.log(`请求地址: https://${HOST}`);
+    
+    const response = await fetch(`https://${HOST}`, {
+      method: "POST",
+      headers,
+      body,
+    });
+    
+    const data = await response.json();
+    
+    if (data.Response?.Error) {
+      console.log(`✗ API 调用失败: ${data.Response.Error.Code}`);
+      console.log(`  错误信息: ${data.Response.Error.Message}`);
+      return false;
+    }
+    
+    const template = data.Response?.Templates?.[0];
+    if (template) {
+      console.log(`✓ API 调用成功！`);
+      console.log(`  模板名称: ${template.TemplateName}`);
+      console.log(`  模板ID: ${template.TemplateId}`);
+      console.log(`  控件数量: ${template.Components?.length || 0}`);
+      return true;
+    }
+    
+    console.log(`✗ 未找到模板`);
+    return false;
+  } catch (error) {
+    console.log(`✗ API 调用异常: ${error.message}`);
+    return false;
+  }
+}
+
+/**
+ * 格式化日期为 YYYY-MM-DD
+ */
+function formatDate(timestamp) {
+  const date = new Date(timestamp * 1000);
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 main();

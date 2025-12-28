@@ -46,6 +46,7 @@ const VALID_TRANSITIONS: Record<ContractStatus, ContractStatus[]> = {
   ],
   [ContractStatus.PENDING_PARTY_B]: [
     ContractStatus.PENDING_PARTY_A,
+    ContractStatus.COMPLETED,  // 甲方自动签署时，乙方签完直接完成
     ContractStatus.REJECTED,
     ContractStatus.EXPIRED,
     ContractStatus.CANCELLED,
