@@ -4,6 +4,7 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { contractService } from '@/services/contract.service';
 import { initiateContract } from '@/services/contract-flow.service';
 import { validatePartyBInfo } from '@/lib/validators';
+import prisma from '@/lib/prisma';
 
 /**
  * 创建合同 API
@@ -61,7 +62,7 @@ export async function POST(request: NextRequest) {
 
     if (!validation.valid) {
       return NextResponse.json(
-        { error: validation.errors.join(', ') },
+        { error: validation.error || '乙方信息验证失败' },
         { status: 400 }
       );
     }
@@ -93,11 +94,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       contract: {
-        id: initiatedContract.id,
-        contractNo: initiatedContract.contractNo,
-        signUrl: initiatedContract.signUrl,
-        partyBName: initiatedContract.partyBName,
-        partyBPhone: initiatedContract.partyBPhone,
+        id: initiatedContract.contract.id,
+        contractNo: initiatedContract.contract.contractNo,
+        signUrl: initiatedContract.contract.signUrl,
+        partyBName: initiatedContract.contract.partyBName,
+        partyBPhone: initiatedContract.contract.partyBPhone,
       },
     });
   } catch (error) {
@@ -124,13 +125,62 @@ export async function GET(request: NextRequest) {
     const pageSize = parseInt(searchParams.get('pageSize') || '10');
 
     // 普通用户只能查看自己创建的合同
-    const result = await contractService.getContracts({
+    // 直接使用 Prisma 查询，而不是通过 contractService.getContracts
+    const where: any = {
       createdById: session.user.id,
-      status: status as any,
-      search,
+    };
+
+    if (status && status !== 'all') {
+      where.status = status;
+    }
+
+    if (search) {
+      where.OR = [
+        { partyBName: { contains: search } },
+        { partyBPhone: { contains: search } },
+      ];
+    }
+
+    // 计算分页
+    const skip = (page - 1) * pageSize;
+
+    // 并行执行查询和计数
+    const [contracts, total] = await Promise.all([
+      prisma.contract.findMany({
+        where,
+        include: {
+          Product: {
+            select: {
+              name: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: pageSize,
+      }),
+      prisma.contract.count({ where }),
+    ]);
+
+    // 转换为响应格式
+    const data = contracts.map(contract => ({
+      id: contract.id,
+      contractNo: contract.contractNo,
+      partyBName: contract.partyBName,
+      partyBPhone: contract.partyBPhone,
+      status: contract.status,
+      createdAt: contract.createdAt.toISOString(),
+      completedAt: contract.completedAt?.toISOString() || null,
+      productName: contract.Product.name,
+    }));
+
+    const result = {
+      data,
+      total,
       page,
       pageSize,
-    });
+      totalPages: Math.ceil(total / pageSize),
+    };
 
     return NextResponse.json(result);
   } catch (error) {

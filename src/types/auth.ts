@@ -13,7 +13,7 @@ export interface AuthResult {
 // 认证用户信息
 export interface AuthUser {
   id: string;
-  username: string;
+  username: string | null;
   name: string;
   phone: string;
   role: Role;
@@ -24,7 +24,7 @@ export interface AuthUser {
 // JWT Payload
 export interface JWTPayload {
   id: string;
-  username: string;
+  username: string | null;
   name: string;
   role: Role;
   cityId: string | null;

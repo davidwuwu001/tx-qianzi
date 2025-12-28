@@ -182,13 +182,13 @@ export default function ContractsPage() {
       ),
     },
     {
-      title: '乙方姓名',
+      title: '甲方姓名',
       dataIndex: 'partyBName',
       key: 'partyBName',
       width: 120,
     },
     {
-      title: '乙方手机号',
+      title: '甲方联系方式',
       dataIndex: 'partyBPhone',
       key: 'partyBPhone',
       width: 130,
@@ -287,7 +287,7 @@ export default function ContractsPage() {
         {/* 搜索和日期筛选 */}
         <div className="flex flex-wrap gap-4 items-center">
           <Input.Search
-            placeholder="搜索乙方姓名/手机号"
+            placeholder="搜索甲方姓名/联系方式"
             allowClear
             style={{ width: 250 }}
             prefix={<SearchOutlined />}

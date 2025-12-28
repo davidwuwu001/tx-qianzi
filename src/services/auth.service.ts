@@ -45,6 +45,10 @@ export async function loginWithPassword(
       return { success: false, error: '账户已被禁用，请联系管理员' };
     }
 
+    if (!user.password) {
+      return { success: false, error: '账户密码未设置，请联系管理员' };
+    }
+
     const isValid = await verifyPassword(password, user.password);
     if (!isValid) {
       return { success: false, error: '用户名或密码错误' };
@@ -270,6 +274,10 @@ export async function changePassword(
 
     if (!user) {
       return { success: false, error: '用户不存在' };
+    }
+
+    if (!user.password) {
+      return { success: false, error: '账户密码未设置，无法修改密码' };
     }
 
     const isValid = await verifyPassword(oldPassword, user.password);

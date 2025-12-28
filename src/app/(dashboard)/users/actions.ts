@@ -16,7 +16,7 @@ import { User_role } from '@prisma/client';
  */
 interface UserListItemResponse {
   id: string;
-  username: string;
+  username: string | null;
   phone: string;
   name: string;
   role: User_role;
@@ -44,7 +44,7 @@ interface PaginatedUsersResponse {
  */
 interface UserResponse {
   id: string;
-  username: string;
+  username: string | null;
   phone: string;
   name: string;
   role: User_role;
@@ -113,7 +113,7 @@ async function checkSystemAdmin(): Promise<{ isAdmin: boolean; error?: string }>
  */
 function toUserResponse(user: {
   id: string;
-  username: string;
+  username: string | null;
   phone: string;
   name: string;
   role: User_role;

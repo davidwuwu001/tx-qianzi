@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 发送短信
-    await smsService.sendSignLink(phone, contract.signUrl, contract.partyBName);
+    await smsService.sendSignLinkSms(phone, contract.signUrl, contract.partyBName);
 
     return NextResponse.json({ success: true });
   } catch (error) {

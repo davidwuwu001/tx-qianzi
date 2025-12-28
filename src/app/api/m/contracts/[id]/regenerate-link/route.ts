@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import prisma from '@/lib/prisma';
-import { esignService } from '@/services/esign.service';
+import { esignService, ApproverType } from '@/services/esign.service';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -15,10 +15,13 @@ export async function POST(
       return NextResponse.json({ error: '未登录' }, { status: 401 });
     }
 
+    // 获取 params
+    const { id } = await params;
+
     // 验证合同属于当前用户
     const contract = await prisma.contract.findFirst({
       where: {
-        id: params.id,
+        id: id,
         createdById: session.user.id,
       },
     });
@@ -43,11 +46,19 @@ export async function POST(
 
     // 调用腾讯电子签API重新生成签署链接
     const signUrlResult = await esignService.createFlowSignUrl({
-      flowId: contract.flowId,
-      flowApproverInfos: [
+      FlowId: contract.flowId,
+      FlowApproverInfos: [
         {
-          approverName: contract.partyBName,
-          approverMobile: contract.partyBPhone,
+          ApproverName: contract.partyBName,
+          ApproverMobile: contract.partyBPhone,
+          ApproverType:
+            contract.partyBType === "PERSONAL"
+              ? ApproverType.PERSONAL
+              : ApproverType.ENTERPRISE,
+          OrganizationName:
+            contract.partyBType === "ENTERPRISE"
+              ? contract.partyBName
+              : undefined,
         },
       ],
     });
@@ -56,7 +67,7 @@ export async function POST(
     await prisma.contract.update({
       where: { id: contract.id },
       data: {
-        signUrl: signUrlResult.signUrl,
+        signUrl: signUrlResult.SignUrl,
         signUrlExpireAt: new Date(Date.now() + 30 * 60 * 1000), // 30分钟后过期
         updatedAt: new Date(),
       },
@@ -64,7 +75,7 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      signUrl: signUrlResult.signUrl,
+      signUrl: signUrlResult.SignUrl,
     });
   } catch (error) {
     console.error('重新生成签署链接失败:', error);

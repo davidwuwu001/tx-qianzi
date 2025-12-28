@@ -47,10 +47,10 @@ const { Title, Text } = Typography;
 // 用户列表项类型
 interface UserListItem {
   id: string;
-  username: string;
+  username: string | null;
   phone: string;
   name: string;
-  role: 'SYSTEM_ADMIN' | 'CITY_ADMIN';
+  role: 'SYSTEM_ADMIN' | 'CITY_ADMIN' | 'ORDINARY_USER';
   cityId: string | null;
   cityName: string | null;
   isActive: boolean;

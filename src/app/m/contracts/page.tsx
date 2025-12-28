@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { Card, Tag, Spin, Empty, Input, Segmented } from 'antd';
 import { SearchOutlined, RightOutlined } from '@ant-design/icons';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -33,7 +33,8 @@ const statusOptions = [
   { label: '已完成', value: 'COMPLETED' },
 ];
 
-export default function MobileContractsPage() {
+// 合同列表组件（使用 useSearchParams）
+function ContractsList() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { status: authStatus } = useSession();
@@ -89,11 +90,6 @@ export default function MobileContractsPage() {
   }, [authStatus, statusFilter, router]);
 
   const handleSearch = () => {
-    fetchContracts(true);
-  };
-
-  const handleRefresh = () => {
-    setRefreshing(true);
     fetchContracts(true);
   };
 
@@ -201,5 +197,23 @@ export default function MobileContractsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+// 加载状态组件
+function ContractsListFallback() {
+  return (
+    <div className="flex items-center justify-center min-h-screen">
+      <Spin size="large" />
+    </div>
+  );
+}
+
+// 主页面组件
+export default function MobileContractsPage() {
+  return (
+    <Suspense fallback={<ContractsListFallback />}>
+      <ContractsList />
+    </Suspense>
   );
 }
