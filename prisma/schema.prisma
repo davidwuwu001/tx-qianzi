@@ -1,0 +1,203 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model AuditLog {
+  id         String   @id
+  userId     String?
+  action     String
+  resource   String?
+  resourceId String?
+  details    Json?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  User       User?    @relation(fields: [userId], references: [id])
+
+  @@index([action])
+  @@index([createdAt])
+  @@index([userId])
+}
+
+model City {
+  id          String        @id
+  name        String        @unique
+  description String?
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime
+  CityProduct CityProduct[]
+  Contract    Contract[]
+  User        User[]
+
+  @@index([isActive])
+}
+
+model CityProduct {
+  id        String   @id
+  cityId    String
+  productId String
+  createdAt DateTime @default(now())
+  City      City     @relation(fields: [cityId], references: [id])
+  Product   Product  @relation(fields: [productId], references: [id])
+
+  @@unique([cityId, productId])
+  @@index([productId], map: "CityProduct_productId_fkey")
+}
+
+model Contract {
+  id                               String              @id
+  contractNo                       String              @unique
+  flowId                           String?             @unique
+  productId                        String
+  cityId                           String
+  partyBName                       String
+  partyBPhone                      String
+  partyBIdCard                     String?
+  partyBType                       Contract_partyBType @default(PERSONAL)
+  partyBOrgName                    String?
+  formData                         Json?
+  status                           Contract_status     @default(DRAFT)
+  signUrl                          String?             @db.Text
+  signUrlExpireAt                  DateTime?
+  approvedAt                       DateTime?
+  approvedById                     String?
+  rejectionReason                  String?
+  createdById                      String
+  createdAt                        DateTime            @default(now())
+  updatedAt                        DateTime
+  completedAt                      DateTime?
+  User_Contract_approvedByIdToUser User?               @relation("Contract_approvedByIdToUser", fields: [approvedById], references: [id])
+  City                             City                @relation(fields: [cityId], references: [id])
+  User_Contract_createdByIdToUser  User                @relation("Contract_createdByIdToUser", fields: [createdById], references: [id])
+  Product                          Product             @relation(fields: [productId], references: [id])
+  ContractStatusLog                ContractStatusLog[]
+
+  @@index([approvedById], map: "Contract_approvedById_fkey")
+  @@index([cityId])
+  @@index([createdAt])
+  @@index([createdById], map: "Contract_createdById_fkey")
+  @@index([flowId])
+  @@index([partyBPhone])
+  @@index([productId], map: "Contract_productId_fkey")
+  @@index([status])
+}
+
+model ContractStatusLog {
+  id           String                        @id
+  contractId   String
+  fromStatus   ContractStatusLog_fromStatus?
+  toStatus     ContractStatusLog_toStatus
+  operatorId   String?
+  operatorName String?
+  remark       String?
+  createdAt    DateTime                      @default(now())
+  Contract     Contract                      @relation(fields: [contractId], references: [id])
+
+  @@index([contractId])
+  @@index([createdAt])
+}
+
+model Product {
+  id          String        @id
+  name        String
+  description String?
+  templateId  String
+  formFields  Json?
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime
+  CityProduct CityProduct[]
+  Contract    Contract[]
+
+  @@index([isActive])
+}
+
+model SystemConfig {
+  id        String   @id
+  key       String   @unique
+  value     String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+}
+
+model User {
+  id                                   String     @id
+  username                             String?    @unique  // 普通用户可以没有用户名
+  password                             String?              // 普通用户可以没有密码（仅验证码登录）
+  phone                                String     @unique
+  name                                 String
+  role                                 User_role  @default(ORDINARY_USER)  // 默认角色改为普通用户
+  cityId                               String?
+  isActive                             Boolean    @default(true)
+  lastLoginAt                          DateTime?
+  createdAt                            DateTime   @default(now())
+  updatedAt                            DateTime
+  AuditLog                             AuditLog[]
+  Contract_Contract_approvedByIdToUser Contract[] @relation("Contract_approvedByIdToUser")
+  Contract_Contract_createdByIdToUser  Contract[] @relation("Contract_createdByIdToUser")
+  City                                 City?      @relation(fields: [cityId], references: [id])
+
+  @@index([cityId])
+  @@index([phone])
+}
+
+model VerificationCode {
+  id        String    @id
+  phone     String
+  code      String
+  type      String    @default("LOGIN")
+  attempts  Int       @default(0)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([expiresAt])
+  @@index([phone, type])
+}
+
+enum ContractStatusLog_fromStatus {
+  DRAFT
+  PENDING_PARTY_B
+  PENDING_PARTY_A
+  COMPLETED
+  REJECTED
+  EXPIRED
+  CANCELLED
+}
+
+enum ContractStatusLog_toStatus {
+  DRAFT
+  PENDING_PARTY_B
+  PENDING_PARTY_A
+  COMPLETED
+  REJECTED
+  EXPIRED
+  CANCELLED
+}
+
+enum User_role {
+  SYSTEM_ADMIN
+  CITY_ADMIN
+  ORDINARY_USER
+}
+
+enum Contract_partyBType {
+  PERSONAL
+  ENTERPRISE
+}
+
+enum Contract_status {
+  DRAFT
+  PENDING_PARTY_B
+  PENDING_PARTY_A
+  COMPLETED
+  REJECTED
+  EXPIRED
+  CANCELLED
+}
