@@ -14,6 +14,8 @@ import {
   Typography,
   Spin,
   message,
+  Pagination,
+  Empty,
 } from 'antd';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import {
@@ -21,6 +23,7 @@ import {
   PlusOutlined,
   ReloadOutlined,
   EyeOutlined,
+  RightOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { getContractsAction } from './actions';
@@ -267,6 +270,90 @@ export default function ContractsPage() {
   // 响应式滚动配置
   const scrollConfig = getResponsiveScroll(isMobile, 600);
 
+  // 移动端合同卡片组件
+  const ContractCard = ({ contract }: { contract: ContractListItem }) => {
+    const statusConfig = STATUS_CONFIG[contract.status] || { label: contract.status, color: 'default' };
+    
+    return (
+      <Card
+        size="small"
+        className="mb-3 contract-card"
+        hoverable
+        onClick={() => handleViewContract(contract.id)}
+      >
+        <div className="flex justify-between items-start">
+          <div className="flex-1 min-w-0">
+            {/* 合同编号 */}
+            <div className="text-sm font-medium text-blue-600 mb-2 truncate">
+              {contract.contractNo}
+            </div>
+            {/* 甲方姓名 */}
+            <div className="text-base font-semibold text-gray-900 mb-1">
+              {contract.partyBName}
+            </div>
+            {/* 产品名称 */}
+            <div className="text-xs text-gray-500 mb-2 truncate">
+              {contract.productName}
+            </div>
+            {/* 创建时间 */}
+            <div className="text-xs text-gray-400">
+              {dayjs(contract.createdAt).format('YYYY-MM-DD HH:mm')}
+            </div>
+          </div>
+          <div className="flex flex-col items-end gap-2 ml-3">
+            {/* 状态标签 */}
+            <Tag color={statusConfig.color} className="m-0">
+              {statusConfig.label}
+            </Tag>
+            {/* 箭头图标 */}
+            <RightOutlined className="text-gray-400 text-xs" />
+          </div>
+        </div>
+      </Card>
+    );
+  };
+
+  // 移动端卡片列表
+  const MobileCardList = () => {
+    if (loading) {
+      return (
+        <div className="flex items-center justify-center py-12">
+          <Spin size="large" />
+        </div>
+      );
+    }
+
+    if (contracts.length === 0) {
+      return <Empty description="暂无签约记录" className="py-12" />;
+    }
+
+    return (
+      <div>
+        {/* 卡片列表 */}
+        <div className="mb-4">
+          {contracts.map((contract) => (
+            <ContractCard key={contract.id} contract={contract} />
+          ))}
+        </div>
+        
+        {/* 分页 */}
+        <div className="flex justify-center">
+          <Pagination
+            current={currentPage}
+            pageSize={pageSize}
+            total={total}
+            size="small"
+            simple
+            onChange={(page, size) => {
+              setCurrentPage(page);
+              setPageSize(size);
+            }}
+          />
+        </div>
+      </div>
+    );
+  };
+
   // 加载中状态
   if (sessionStatus === 'loading') {
     return (
@@ -342,16 +429,20 @@ export default function ContractsPage() {
 
       {/* 合同列表 */}
       <Card size={isMobile ? 'small' : 'default'}>
-        <Table
-          columns={columns}
-          dataSource={contracts}
-          rowKey="id"
-          loading={loading}
-          scroll={scrollConfig}
-          pagination={paginationConfig}
-          onChange={handleTableChange}
-          size={isMobile ? 'small' : 'middle'}
-        />
+        {isMobile ? (
+          <MobileCardList />
+        ) : (
+          <Table
+            columns={columns}
+            dataSource={contracts}
+            rowKey="id"
+            loading={loading}
+            scroll={scrollConfig}
+            pagination={paginationConfig}
+            onChange={handleTableChange}
+            size={isMobile ? 'small' : 'middle'}
+          />
+        )}
       </Card>
     </div>
   );

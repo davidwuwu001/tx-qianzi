@@ -409,3 +409,22 @@ body {
     padding-bottom: max(12px, env(safe-area-inset-bottom));
   }
 }
+
+/* ========================================
+   合同卡片样式
+   ======================================== */
+.contract-card {
+  transition: all 0.2s ease;
+  border: 1px solid #f0f0f0;
+}
+
+.contract-card:active {
+  transform: scale(0.98);
+  background-color: #fafafa;
+}
+
+@media (max-width: 767px) {
+  .contract-card .ant-card-body {
+    padding: 12px !important;
+  }
+}
