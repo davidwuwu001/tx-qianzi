@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
 import { SessionProvider } from 'next-auth/react';
@@ -13,6 +13,7 @@ import {
   ConfigProvider,
   App,
   theme,
+  Drawer,
 } from 'antd';
 import type { MenuProps } from 'antd';
 import {
@@ -26,8 +27,11 @@ import {
   TeamOutlined,
   AppstoreOutlined,
   EnvironmentOutlined,
+  CloseOutlined,
+  MenuOutlined,
 } from '@ant-design/icons';
 import zhCN from 'antd/locale/zh_CN';
+import { useResponsive, MOBILE_BREAKPOINT } from '@/hooks/useResponsive';
 
 const { Header, Sider, Content } = Layout;
 
@@ -84,7 +88,19 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { data: session, status } = useSession();
+  const { isMobile } = useResponsive();
+  
+  // 侧边栏折叠状态（桌面端）
   const [collapsed, setCollapsed] = useState(false);
+  // 抽屉可见状态（移动端）
+  const [drawerVisible, setDrawerVisible] = useState(false);
+
+  // 切换到桌面端时自动关闭抽屉
+  useEffect(() => {
+    if (!isMobile && drawerVisible) {
+      setDrawerVisible(false);
+    }
+  }, [isMobile, drawerVisible]);
 
   // 加载中状态
   if (status === 'loading') {
@@ -130,6 +146,10 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
   // 处理菜单点击
   const handleMenuClick: MenuProps['onClick'] = (e) => {
     router.push(e.key);
+    // 移动端点击菜单后关闭抽屉
+    if (isMobile) {
+      setDrawerVisible(false);
+    }
   };
 
   // 获取当前选中的菜单项
@@ -145,74 +165,148 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
     return [pathname || '/'];
   };
 
+  // 菜单内容组件（复用于侧边栏和抽屉）
+  const menuContent = (
+    <>
+      {/* Logo */}
+      <div className={`flex items-center justify-center border-b border-gray-100 ${isMobile ? 'h-14' : 'h-16'}`}>
+        {collapsed && !isMobile ? (
+          <span className="text-xl font-bold text-blue-600">签</span>
+        ) : (
+          <span className={`font-semibold text-gray-800 ${isMobile ? 'text-base' : 'text-lg'}`}>
+            电子签约系统
+          </span>
+        )}
+      </div>
+
+      {/* 导航菜单 */}
+      <Menu
+        mode="inline"
+        selectedKeys={getSelectedKeys()}
+        items={menuItems}
+        onClick={handleMenuClick}
+        className="border-r-0 mt-2"
+      />
+    </>
+  );
+
   return (
     <Layout className="min-h-screen">
-      {/* 侧边栏 */}
-      <Sider
-        trigger={null}
-        collapsible
-        collapsed={collapsed}
-        className="!bg-white shadow-sm"
-        width={220}
-      >
-        {/* Logo */}
-        <div className="h-16 flex items-center justify-center border-b border-gray-100">
-          {collapsed ? (
-            <span className="text-xl font-bold text-blue-600">签</span>
-          ) : (
-            <span className="text-lg font-semibold text-gray-800">
-              电子签约系统
-            </span>
-          )}
-        </div>
+      {/* 移动端抽屉菜单 */}
+      {isMobile && (
+        <Drawer
+          placement="left"
+          open={drawerVisible}
+          onClose={() => setDrawerVisible(false)}
+          width={280}
+          styles={{ body: { padding: 0 } }}
+          closeIcon={null}
+          className="mobile-drawer"
+          title={
+            <div className="flex items-center justify-between">
+              <span className="text-base font-semibold text-gray-800">
+                电子签约系统
+              </span>
+              <CloseOutlined 
+                className="text-gray-500 cursor-pointer p-2 -mr-2 hover:text-gray-700"
+                onClick={() => setDrawerVisible(false)}
+              />
+            </div>
+          }
+        >
+          {/* 导航菜单 */}
+          <Menu
+            mode="inline"
+            selectedKeys={getSelectedKeys()}
+            items={menuItems}
+            onClick={handleMenuClick}
+            className="border-r-0"
+          />
+        </Drawer>
+      )}
 
-        {/* 导航菜单 */}
-        <Menu
-          mode="inline"
-          selectedKeys={getSelectedKeys()}
-          items={menuItems}
-          onClick={handleMenuClick}
-          className="border-r-0 mt-2"
-        />
-      </Sider>
+      {/* 桌面端侧边栏 */}
+      {!isMobile && (
+        <Sider
+          trigger={null}
+          collapsible
+          collapsed={collapsed}
+          className="!bg-white shadow-sm"
+          width={220}
+        >
+          {menuContent}
+        </Sider>
+      )}
 
       <Layout>
         {/* 顶部栏 */}
-        <Header className="!bg-white !px-4 flex items-center justify-between shadow-sm">
-          {/* 左侧：折叠按钮 */}
+        <Header 
+          className={`!bg-white flex items-center justify-between shadow-sm ${
+            isMobile ? '!px-3 !h-14' : '!px-4 !h-16'
+          }`}
+          style={{ 
+            height: isMobile ? 56 : 64,
+            lineHeight: isMobile ? '56px' : '64px',
+          }}
+        >
+          {/* 左侧：菜单按钮 */}
           <div
-            className="cursor-pointer text-lg text-gray-600 hover:text-blue-600 transition-colors"
-            onClick={() => setCollapsed(!collapsed)}
+            className={`cursor-pointer text-gray-600 hover:text-blue-600 transition-colors flex items-center justify-center ${
+              isMobile ? 'text-xl w-11 h-11' : 'text-lg w-10 h-10'
+            }`}
+            onClick={() => isMobile ? setDrawerVisible(true) : setCollapsed(!collapsed)}
           >
-            {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+            {isMobile ? (
+              <MenuOutlined />
+            ) : (
+              collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />
+            )}
           </div>
 
           {/* 右侧：用户信息 */}
-          <div className="flex items-center gap-4">
-            {/* 城市标签 */}
+          <div className="flex items-center gap-2 sm:gap-4">
+            {/* 城市标签 - 移动端只显示图标 */}
             {user?.cityName && (
-              <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-                <EnvironmentOutlined className="mr-1" />
-                {user.cityName}
+              <span 
+                className={`text-gray-500 bg-gray-100 rounded-full flex items-center ${
+                  isMobile ? 'w-9 h-9 justify-center' : 'text-sm px-3 py-1'
+                }`}
+                title={user.cityName}
+              >
+                <EnvironmentOutlined className={isMobile ? '' : 'mr-1'} />
+                {!isMobile && user.cityName}
               </span>
             )}
 
             {/* 用户下拉菜单 */}
             <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
-              <div className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 px-3 py-1 rounded-lg transition-colors">
+              <div 
+                className={`flex items-center cursor-pointer hover:bg-gray-50 rounded-lg transition-colors ${
+                  isMobile ? 'p-2' : 'gap-2 px-3 py-1'
+                }`}
+              >
                 <Avatar
-                  size="small"
+                  size={isMobile ? 'default' : 'small'}
                   icon={<UserOutlined />}
                   className="bg-blue-500"
                 />
-                <span className="text-gray-700">{user?.name || '用户'}</span>
+                {/* 移动端隐藏用户名 */}
+                {!isMobile && (
+                  <span className="text-gray-700">{user?.name || '用户'}</span>
+                )}
               </div>
             </Dropdown>
           </div>
         </Header>
 
         {/* 内容区域 */}
-        <Content className="m-4 p-6 bg-white rounded-lg shadow-sm min-h-[calc(100vh-112px)]">
+        <Content 
+          className={`bg-white rounded-lg shadow-sm ${
+            isMobile 
+              ? 'm-2 p-3 min-h-[calc(100vh-72px)]' 
+              : 'm-4 p-6 min-h-[calc(100vh-112px)]'
+          }`}
+        >
           {children}
         </Content>
       </Layout>

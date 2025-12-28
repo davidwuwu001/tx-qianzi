@@ -24,6 +24,8 @@ import {
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { getContractsAction } from './actions';
+import { useResponsive } from '@/hooks/useResponsive';
+import { getResponsiveColumns, getResponsivePagination, getResponsiveScroll } from '@/utils/responsive-table';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -69,6 +71,7 @@ interface ContractListItem {
 export default function ContractsPage() {
   const { status: sessionStatus } = useSession();
   const router = useRouter();
+  const { isMobile, isTablet } = useResponsive();
 
   // 状态
   const [loading, setLoading] = useState(false);
@@ -171,7 +174,7 @@ export default function ContractsPage() {
   };
 
   // 表格列配置
-  const columns: ColumnsType<ContractListItem> = [
+  const baseColumns: ColumnsType<ContractListItem> = [
     {
       title: '合同编号',
       dataIndex: 'contractNo',
@@ -228,18 +231,41 @@ export default function ContractsPage() {
       title: '操作',
       key: 'action',
       width: 100,
-      fixed: 'right',
       render: (_: unknown, record: ContractListItem) => (
         <Button
           type="link"
           icon={<EyeOutlined />}
           onClick={() => handleViewContract(record.id)}
+          size={isMobile ? 'small' : 'middle'}
         >
-          查看
+          {isMobile ? '' : '查看'}
         </Button>
       ),
     },
   ];
+
+  // 应用响应式列配置
+  const columns = getResponsiveColumns(baseColumns, {
+    isMobile,
+    isTablet,
+    mobileHiddenColumns: ['partyBPhone', 'productName', 'createdAt', 'updatedAt'],
+    tabletHiddenColumns: ['updatedAt'],
+  });
+
+  // 响应式分页配置
+  const paginationConfig = getResponsivePagination({
+    isMobile,
+    current: currentPage,
+    pageSize,
+    total,
+    onChange: (page, size) => {
+      setCurrentPage(page);
+      setPageSize(size);
+    },
+  });
+
+  // 响应式滚动配置
+  const scrollConfig = getResponsiveScroll(isMobile, 600);
 
   // 加载中状态
   if (sessionStatus === 'loading') {
@@ -254,12 +280,12 @@ export default function ContractsPage() {
   return (
     <div>
       {/* 页面标题 */}
-      <div className="flex justify-between items-center mb-6">
+      <div className={`${isMobile ? 'flex flex-col gap-3' : 'flex justify-between items-center'} mb-6`}>
         <div>
-          <Title level={4} className="!mb-1">
+          <Title level={4} className={`!mb-1 ${isMobile ? '!text-lg' : ''}`}>
             签约管理
           </Title>
-          <Text type="secondary">
+          <Text type="secondary" className={isMobile ? 'text-xs' : ''}>
             查看和管理所有签约记录
           </Text>
         </div>
@@ -267,17 +293,19 @@ export default function ContractsPage() {
           type="primary"
           icon={<PlusOutlined />}
           onClick={handleNewContract}
+          block={isMobile}
         >
           发起签约
         </Button>
       </div>
 
       {/* 筛选区域 */}
-      <Card className="mb-4">
+      <Card className="mb-4" size={isMobile ? 'small' : 'default'}>
         {/* 状态Tab */}
         <Tabs
           activeKey={activeTab}
           onChange={handleTabChange}
+          size={isMobile ? 'small' : 'middle'}
           items={STATUS_TABS.map(tab => ({
             key: tab.key,
             label: tab.label,
@@ -285,11 +313,11 @@ export default function ContractsPage() {
         />
 
         {/* 搜索和日期筛选 */}
-        <div className="flex flex-wrap gap-4 items-center">
+        <div className={`flex ${isMobile ? 'flex-col gap-3' : 'flex-wrap gap-4'} items-center`}>
           <Input.Search
             placeholder="搜索甲方姓名/联系方式"
             allowClear
-            style={{ width: 250 }}
+            style={{ width: isMobile ? '100%' : 250 }}
             prefix={<SearchOutlined />}
             onSearch={handleSearch}
             onChange={(e) => !e.target.value && handleSearch('')}
@@ -299,35 +327,30 @@ export default function ContractsPage() {
             placeholder={['开始日期', '结束日期']}
             onChange={handleDateRangeChange}
             value={dateRange}
+            style={{ width: isMobile ? '100%' : 'auto' }}
           />
 
           <Button
             icon={<ReloadOutlined />}
             onClick={loadContracts}
+            block={isMobile}
           >
-            刷新
+            {isMobile ? '' : '刷新'}
           </Button>
         </div>
       </Card>
 
       {/* 合同列表 */}
-      <Card>
+      <Card size={isMobile ? 'small' : 'default'}>
         <Table
           columns={columns}
           dataSource={contracts}
           rowKey="id"
           loading={loading}
-          scroll={{ x: 1200 }}
-          pagination={{
-            current: currentPage,
-            pageSize,
-            total,
-            showSizeChanger: true,
-            showQuickJumper: true,
-            showTotal: (total) => `共 ${total} 条记录`,
-            pageSizeOptions: ['10', '20', '50', '100'],
-          }}
+          scroll={scrollConfig}
+          pagination={paginationConfig}
           onChange={handleTableChange}
+          size={isMobile ? 'small' : 'middle'}
         />
       </Card>
     </div>

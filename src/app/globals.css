@@ -19,3 +19,393 @@ body {
 .ant-layout {
   min-height: 100vh;
 }
+
+/* ========================================
+   响应式工具类
+   ======================================== */
+
+/* 移动端隐藏 */
+.hide-on-mobile {
+  display: block;
+}
+
+/* 桌面端隐藏 */
+.hide-on-desktop {
+  display: none;
+}
+
+/* 移动端全宽 */
+.mobile-full-width {
+  width: auto;
+}
+
+/* 移动端垂直堆叠 */
+.mobile-stack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+/* ========================================
+   移动端全局样式 (< 768px)
+   ======================================== */
+@media (max-width: 767px) {
+  /* 响应式工具类 - 移动端 */
+  .hide-on-mobile {
+    display: none !important;
+  }
+
+  .hide-on-desktop {
+    display: block !important;
+  }
+
+  .mobile-full-width {
+    width: 100% !important;
+  }
+
+  .mobile-stack {
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+
+  /* 抽屉导航样式 */
+  .mobile-drawer .ant-drawer-body {
+    padding: 0 !important;
+  }
+
+  .mobile-drawer .ant-drawer-header {
+    padding: 12px 16px !important;
+  }
+
+  /* 弹窗样式 - 接近全屏 */
+  .mobile-modal {
+    max-width: 100vw !important;
+    margin: 0 !important;
+    padding-bottom: 0 !important;
+    top: 0 !important;
+  }
+
+  .mobile-modal .ant-modal-content {
+    border-radius: 0 0 12px 12px;
+    min-height: 50vh;
+    max-height: 100vh;
+  }
+
+  .mobile-modal .ant-modal-body {
+    max-height: calc(100vh - 110px);
+    overflow-y: auto;
+  }
+
+  /* 表格样式 */
+  .ant-table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .ant-table {
+    font-size: 13px;
+  }
+
+  .ant-table-thead > tr > th {
+    padding: 8px 8px !important;
+    font-size: 12px;
+  }
+
+  .ant-table-tbody > tr > td {
+    padding: 8px 8px !important;
+  }
+
+  /* 卡片样式 */
+  .ant-card {
+    border-radius: 8px;
+  }
+
+  .ant-card-body {
+    padding: 12px !important;
+  }
+
+  .ant-card-head {
+    padding: 0 12px !important;
+    min-height: 40px !important;
+  }
+
+  .ant-card-head-title {
+    padding: 10px 0 !important;
+    font-size: 14px !important;
+  }
+
+  /* 按钮触摸目标 - 确保最小 44px */
+  .ant-btn {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 8px 16px;
+  }
+
+  .ant-btn-sm {
+    min-height: 36px;
+    min-width: 36px;
+    padding: 4px 12px;
+  }
+
+  .ant-btn-icon-only {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* 输入框触摸目标 */
+  .ant-input,
+  .ant-input-affix-wrapper,
+  .ant-select-selector,
+  .ant-picker {
+    min-height: 44px !important;
+  }
+
+  .ant-input-search .ant-input {
+    min-height: 44px !important;
+  }
+
+  .ant-select-selection-search-input {
+    min-height: 42px !important;
+  }
+
+  /* 分页简化样式 */
+  .ant-pagination {
+    justify-content: center;
+  }
+
+  .ant-pagination-simple .ant-pagination-simple-pager {
+    height: 44px;
+    line-height: 44px;
+  }
+
+  .ant-pagination-item {
+    min-width: 36px;
+    height: 36px;
+    line-height: 34px;
+  }
+
+  /* 标签页样式 */
+  .ant-tabs-nav {
+    margin-bottom: 12px !important;
+  }
+
+  .ant-tabs-tab {
+    padding: 8px 12px !important;
+    font-size: 13px !important;
+  }
+
+  .ant-tabs-nav-list {
+    gap: 0 !important;
+  }
+
+  /* 步骤条样式 */
+  .ant-steps-horizontal:not(.ant-steps-label-vertical) .ant-steps-item {
+    padding-inline-start: 8px;
+  }
+
+  .ant-steps-item-title {
+    font-size: 13px !important;
+  }
+
+  /* 统计数值样式 */
+  .ant-statistic-title {
+    font-size: 12px !important;
+  }
+
+  .ant-statistic-content-value {
+    font-size: 20px !important;
+  }
+
+  /* 表单样式 */
+  .ant-form-item-label {
+    padding-bottom: 4px !important;
+  }
+
+  .ant-form-item-label > label {
+    font-size: 13px !important;
+  }
+
+  /* 下拉菜单样式 */
+  .ant-dropdown-menu-item {
+    min-height: 44px;
+    line-height: 44px;
+    padding: 0 16px !important;
+  }
+
+  /* 日期选择器样式 */
+  .ant-picker-panel-container {
+    max-width: 100vw;
+  }
+
+  .ant-picker-date-panel {
+    width: auto;
+  }
+
+  /* 消息提示样式 */
+  .ant-message {
+    top: 60px !important;
+  }
+
+  /* 标题样式调整 */
+  .ant-typography h4 {
+    font-size: 16px !important;
+  }
+
+  .ant-typography h5 {
+    font-size: 14px !important;
+  }
+}
+
+/* ========================================
+   平板端样式 (768px - 1023px)
+   ======================================== */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .ant-card-body {
+    padding: 16px;
+  }
+
+  .ant-table-thead > tr > th {
+    padding: 10px 12px !important;
+  }
+
+  .ant-table-tbody > tr > td {
+    padding: 10px 12px !important;
+  }
+}
+
+/* ========================================
+   触摸设备优化
+   ======================================== */
+@media (hover: none) and (pointer: coarse) {
+  /* 移除 hover 效果依赖，使用 active 状态 */
+  .ant-btn:hover {
+    opacity: 1;
+  }
+
+  .ant-btn:active {
+    transform: scale(0.98);
+    transition: transform 0.1s ease;
+  }
+
+  /* 卡片点击反馈 */
+  .ant-card-hoverable:active {
+    transform: scale(0.99);
+    transition: transform 0.1s ease;
+  }
+
+  /* 增加滚动流畅度 */
+  .ant-table-body {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* 链接点击区域增大 */
+  a {
+    padding: 4px 0;
+  }
+
+  /* 禁用文本选择（防止长按选中） */
+  .ant-btn,
+  .ant-menu-item,
+  .ant-tabs-tab {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* 触摸目标尺寸优化 - 确保最小 44x44 像素 */
+  .ant-checkbox-wrapper {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .ant-radio-wrapper {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .ant-switch {
+    min-width: 50px;
+    min-height: 28px;
+  }
+
+  /* 标签点击区域 */
+  .ant-tag {
+    min-height: 28px;
+    line-height: 26px;
+    padding: 0 10px;
+  }
+
+  /* 面包屑链接 */
+  .ant-breadcrumb a {
+    padding: 8px 4px;
+    display: inline-block;
+  }
+
+  /* 表格操作按钮 */
+  .ant-table-tbody .ant-btn-link {
+    min-height: 36px;
+    padding: 4px 8px;
+  }
+
+  /* 下拉菜单触发器 */
+  .ant-dropdown-trigger {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* 图标按钮 */
+  .ant-btn-icon-only {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* 分页按钮 */
+  .ant-pagination-prev,
+  .ant-pagination-next {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* 关闭按钮 */
+  .ant-modal-close,
+  .ant-drawer-close {
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* 菜单项 */
+  .ant-menu-item {
+    min-height: 44px;
+    line-height: 44px;
+  }
+
+  /* 选择器清除按钮 */
+  .ant-select-clear,
+  .ant-input-clear-icon {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* ========================================
+   安全区域适配（刘海屏等）
+   ======================================== */
+@supports (padding: max(0px)) {
+  .mobile-safe-area-top {
+    padding-top: max(12px, env(safe-area-inset-top));
+  }
+
+  .mobile-safe-area-bottom {
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+}

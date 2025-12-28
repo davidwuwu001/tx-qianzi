@@ -27,6 +27,7 @@ import PartyBForm, { type PartyBFormValues } from '@/components/contract/PartyBF
 import ProductFormFields from '@/components/contract/ProductFormFields';
 import SignLinkDisplay from '@/components/contract/SignLinkDisplay';
 import { initiateContractAction, regenerateSignUrlAction } from './actions';
+import { useResponsive } from '@/hooks/useResponsive';
 
 const { Title, Text } = Typography;
 
@@ -56,6 +57,7 @@ export default function NewContractPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [form] = Form.useForm<FormValues>();
+  const { isMobile } = useResponsive();
   
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedProduct, setSelectedProduct] = useState<ProductInfo | null>(null);
@@ -262,19 +264,19 @@ export default function NewContractPage() {
         const formData = form.getFieldValue('formData') || {};
         return (
           <div className="py-6">
-            <Title level={5} className="!mb-4">
+            <Title level={5} className={`!mb-4 ${isMobile ? '!text-sm' : ''}`}>
               确认签约信息
             </Title>
             
             {/* 产品信息 */}
             <Card size="small" className="mb-4" title="产品信息">
               <div className="space-y-2">
-                <div>
+                <div className={isMobile ? 'text-sm' : ''}>
                   <Text type="secondary">产品名称：</Text>
                   <Text strong>{selectedProduct?.name}</Text>
                 </div>
                 {selectedProduct?.description && (
-                  <div>
+                  <div className={isMobile ? 'text-sm' : ''}>
                     <Text type="secondary">产品描述：</Text>
                     <Text>{selectedProduct.description}</Text>
                   </div>
@@ -285,30 +287,30 @@ export default function NewContractPage() {
             {/* 乙方信息 */}
             <Card size="small" className="mb-4" title="乙方信息">
               <div className="space-y-2">
-                <div>
+                <div className={isMobile ? 'text-sm' : ''}>
                   <Text type="secondary">乙方类型：</Text>
                   <Text strong>
                     {form.getFieldValue('partyBType') === 'PERSONAL' ? '个人' : '企业'}
                   </Text>
                 </div>
                 {form.getFieldValue('partyBType') === 'ENTERPRISE' && (
-                  <div>
+                  <div className={isMobile ? 'text-sm' : ''}>
                     <Text type="secondary">企业名称：</Text>
                     <Text strong>{form.getFieldValue('partyBOrgName')}</Text>
                   </div>
                 )}
-                <div>
+                <div className={isMobile ? 'text-sm' : ''}>
                   <Text type="secondary">
                     {form.getFieldValue('partyBType') === 'ENTERPRISE' ? '签署人姓名：' : '姓名：'}
                   </Text>
                   <Text strong>{form.getFieldValue('partyBName')}</Text>
                 </div>
-                <div>
+                <div className={isMobile ? 'text-sm' : ''}>
                   <Text type="secondary">手机号：</Text>
                   <Text strong>{form.getFieldValue('partyBPhone')}</Text>
                 </div>
                 {form.getFieldValue('partyBIdCard') && (
-                  <div>
+                  <div className={isMobile ? 'text-sm' : ''}>
                     <Text type="secondary">身份证号：</Text>
                     <Text strong>{form.getFieldValue('partyBIdCard')}</Text>
                   </div>
@@ -326,7 +328,7 @@ export default function NewContractPage() {
                       return null;
                     }
                     return (
-                      <div key={field.name}>
+                      <div key={field.name} className={isMobile ? 'text-sm' : ''}>
                         <Text type="secondary">{field.label}：</Text>
                         <Text strong>
                           {typeof value === 'object' && value !== null && 'format' in value
@@ -344,14 +346,14 @@ export default function NewContractPage() {
 
       case 3:
         return (
-          <div className="py-6">
+          <div className={isMobile ? 'py-4' : 'py-6'}>
             {contractResult && (
               <>
                 <Result
                   status="success"
                   title="签约发起成功"
                   subTitle={`合同编号：${contractResult.contractNo}`}
-                  className="!py-4"
+                  className={isMobile ? '!py-2' : '!py-4'}
                 />
                 
                 <Divider />
@@ -367,11 +369,15 @@ export default function NewContractPage() {
 
                 <Divider />
 
-                <Space className="w-full justify-center">
-                  <Button onClick={handleNewContract}>
+                <Space 
+                  className="w-full justify-center" 
+                  direction={isMobile ? 'vertical' : 'horizontal'}
+                  size={isMobile ? 'small' : 'middle'}
+                >
+                  <Button onClick={handleNewContract} block={isMobile}>
                     继续发起签约
                   </Button>
-                  <Button type="primary" onClick={handleViewContract}>
+                  <Button type="primary" onClick={handleViewContract} block={isMobile}>
                     查看合同详情
                   </Button>
                 </Space>
@@ -392,17 +398,17 @@ export default function NewContractPage() {
     }
 
     return (
-      <div className="flex justify-between pt-4 border-t border-gray-100">
-        <div>
+      <div className={`flex ${isMobile ? 'flex-col gap-3' : 'justify-between'} pt-4 border-t border-gray-100`}>
+        <div className={isMobile ? 'order-2' : ''}>
           {currentStep > 0 && (
-            <Button icon={<ArrowLeftOutlined />} onClick={handlePrev}>
+            <Button icon={<ArrowLeftOutlined />} onClick={handlePrev} block={isMobile}>
               上一步
             </Button>
           )}
         </div>
-        <div>
+        <div className={isMobile ? 'order-1' : ''}>
           {currentStep < 2 && (
-            <Button type="primary" onClick={handleNext}>
+            <Button type="primary" onClick={handleNext} block={isMobile}>
               下一步
             </Button>
           )}
@@ -412,6 +418,7 @@ export default function NewContractPage() {
               icon={<SendOutlined />}
               onClick={handleSubmit}
               loading={submitting}
+              block={isMobile}
             >
               发起签约
             </Button>
@@ -422,28 +429,30 @@ export default function NewContractPage() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className={isMobile ? '' : 'max-w-3xl mx-auto'}>
       {/* 页面标题 */}
       <div className="mb-6">
-        <Title level={4} className="!mb-2">
+        <Title level={4} className={`!mb-2 ${isMobile ? '!text-lg' : ''}`}>
           发起签约
         </Title>
-        <Text type="secondary">
+        <Text type="secondary" className={isMobile ? 'text-xs' : ''}>
           选择产品模板，填写乙方信息，发起合同签署流程
         </Text>
       </div>
 
       {/* 步骤条 */}
-      <Card className="mb-6">
+      <Card className="mb-6" size={isMobile ? 'small' : 'default'}>
         <Steps
           current={currentStep}
           items={steps}
-          className="px-4"
+          direction={isMobile ? 'vertical' : 'horizontal'}
+          size={isMobile ? 'small' : 'default'}
+          className={isMobile ? 'px-2' : 'px-4'}
         />
       </Card>
 
       {/* 表单内容 */}
-      <Card>
+      <Card size={isMobile ? 'small' : 'default'}>
         <Form
           form={form}
           layout="vertical"

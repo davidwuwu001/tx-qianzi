@@ -30,6 +30,8 @@ import {
 import dayjs from 'dayjs';
 import SignLinkDisplay from '@/components/contract/SignLinkDisplay';
 import { getContractDetailAction, regenerateSignUrlAction, approveContractAction } from './actions';
+import { useResponsive } from '@/hooks/useResponsive';
+import { getResponsiveModalProps } from '@/utils/responsive-modal';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -92,6 +94,7 @@ export default function ContractDetailPage() {
   const router = useRouter();
   const params = useParams();
   const contractId = params.id as string;
+  const { isMobile } = useResponsive();
 
   // 状态
   const [loading, setLoading] = useState(true);
@@ -263,30 +266,39 @@ export default function ContractDetailPage() {
 
   const statusConfig = STATUS_CONFIG[contract.status] || { label: contract.status, color: 'default' };
 
+  // 响应式弹窗配置
+  const modalProps = getResponsiveModalProps({ isMobile });
+
   return (
     <div>
       {/* 页面标题 */}
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center gap-4">
+      <div className={`${isMobile ? 'flex flex-col gap-3' : 'flex justify-between items-center'} mb-6`}>
+        <div className={`flex ${isMobile ? 'flex-col' : 'items-center'} gap-4`}>
           <Button
             icon={<ArrowLeftOutlined />}
             onClick={handleBack}
+            size={isMobile ? 'middle' : 'middle'}
           >
             返回
           </Button>
           <div>
-            <Title level={4} className="!mb-1">
+            <Title level={4} className={`!mb-1 ${isMobile ? '!text-lg' : ''}`}>
               合同详情
             </Title>
-            <Text type="secondary">
+            <Text type="secondary" className={isMobile ? 'text-xs' : ''}>
               合同编号：{contract.contractNo}
             </Text>
           </div>
         </div>
-        <Space>
+        <Space 
+          direction={isMobile ? 'vertical' : 'horizontal'} 
+          className={isMobile ? 'w-full' : ''}
+          size={isMobile ? 'small' : 'middle'}
+        >
           <Button
             icon={<ReloadOutlined />}
             onClick={loadContractDetail}
+            block={isMobile}
           >
             刷新
           </Button>
@@ -297,6 +309,7 @@ export default function ContractDetailPage() {
                 type="primary"
                 icon={<CheckCircleOutlined />}
                 onClick={() => handleOpenApprovalModal('approve')}
+                block={isMobile}
               >
                 审批通过
               </Button>
@@ -304,6 +317,7 @@ export default function ContractDetailPage() {
                 danger
                 icon={<CloseCircleOutlined />}
                 onClick={() => handleOpenApprovalModal('reject')}
+                block={isMobile}
               >
                 审批拒绝
               </Button>
@@ -312,12 +326,15 @@ export default function ContractDetailPage() {
         </Space>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-3'} gap-6`}>
         {/* 左侧：合同信息 */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className={`${isMobile ? '' : 'lg:col-span-2'} space-y-6`}>
           {/* 基本信息 */}
-          <Card title={<><FileTextOutlined className="mr-2" />基本信息</>}>
-            <Descriptions column={{ xs: 1, sm: 2 }} bordered size="small">
+          <Card 
+            title={<><FileTextOutlined className="mr-2" />基本信息</>}
+            size={isMobile ? 'small' : 'default'}
+          >
+            <Descriptions column={1} bordered size="small">
               <Descriptions.Item label="合同编号">{contract.contractNo}</Descriptions.Item>
               <Descriptions.Item label="状态">
                 <Tag color={statusConfig.color}>{statusConfig.label}</Tag>
@@ -337,16 +354,19 @@ export default function ContractDetailPage() {
                 </Descriptions.Item>
               )}
               {contract.flowId && (
-                <Descriptions.Item label="电子签流程ID" span={2}>
-                  <Text copyable>{contract.flowId}</Text>
+                <Descriptions.Item label="电子签流程ID">
+                  <Text copyable className={isMobile ? 'text-xs break-all' : ''}>{contract.flowId}</Text>
                 </Descriptions.Item>
               )}
             </Descriptions>
           </Card>
 
           {/* 乙方信息 */}
-          <Card title={<><UserOutlined className="mr-2" />乙方信息</>}>
-            <Descriptions column={{ xs: 1, sm: 2 }} bordered size="small">
+          <Card 
+            title={<><UserOutlined className="mr-2" />乙方信息</>}
+            size={isMobile ? 'small' : 'default'}
+          >
+            <Descriptions column={1} bordered size="small">
               <Descriptions.Item label="乙方类型">
                 {contract.partyBType === 'PERSONAL' ? '个人' : '企业'}
               </Descriptions.Item>
@@ -365,7 +385,7 @@ export default function ContractDetailPage() {
 
           {/* 审批信息（如果有） */}
           {(contract.approvedAt || contract.rejectionReason) && (
-            <Card title="审批信息">
+            <Card title="审批信息" size={isMobile ? 'small' : 'default'}>
               <Descriptions column={1} bordered size="small">
                 {contract.approvedAt && (
                   <>
@@ -386,7 +406,10 @@ export default function ContractDetailPage() {
 
           {/* 签署链接（待乙方签署状态显示） */}
           {contract.status === 'PENDING_PARTY_B' && contract.signUrl && (
-            <Card title={<><LinkOutlined className="mr-2" />签署链接</>}>
+            <Card 
+              title={<><LinkOutlined className="mr-2" />签署链接</>}
+              size={isMobile ? 'small' : 'default'}
+            >
               <SignLinkDisplay
                 signUrl={contract.signUrl}
                 signUrlExpireAt={contract.signUrlExpireAt || ''}
@@ -401,7 +424,11 @@ export default function ContractDetailPage() {
 
         {/* 右侧：状态时间线 */}
         <div>
-          <Card title="签署时间线" className="sticky top-4">
+          <Card 
+            title="签署时间线" 
+            className={isMobile ? '' : 'sticky top-4'}
+            size={isMobile ? 'small' : 'default'}
+          >
             {contract.statusLogs.length > 0 ? (
               <Timeline
                 items={contract.statusLogs.map((log) => {
@@ -416,9 +443,9 @@ export default function ContractDetailPage() {
                           </Tag>
                         </div>
                         {log.remark && (
-                          <div className="text-gray-500 text-sm mt-1">{log.remark}</div>
+                          <div className={`text-gray-500 mt-1 ${isMobile ? 'text-xs' : 'text-sm'}`}>{log.remark}</div>
                         )}
-                        <div className="text-gray-400 text-xs mt-1">
+                        <div className={`text-gray-400 mt-1 ${isMobile ? 'text-xs' : 'text-xs'}`}>
                           {dayjs(log.createdAt).format('YYYY-MM-DD HH:mm:ss')}
                           {log.operatorName && ` · ${log.operatorName}`}
                         </div>
@@ -445,17 +472,18 @@ export default function ContractDetailPage() {
         confirmLoading={approving}
         okText={approvalType === 'approve' ? '确认通过' : '确认拒绝'}
         okButtonProps={{ danger: approvalType === 'reject' }}
+        {...modalProps}
       >
         {approvalType === 'approve' ? (
           <div>
-            <p>确认审批通过此合同吗？</p>
-            <p className="text-gray-500 text-sm mt-2">
+            <p className={isMobile ? 'text-sm' : ''}>确认审批通过此合同吗？</p>
+            <p className={`text-gray-500 mt-2 ${isMobile ? 'text-xs' : 'text-sm'}`}>
               审批通过后，系统将自动完成甲方签署。
             </p>
           </div>
         ) : (
           <div>
-            <p className="mb-4">请输入拒绝原因：</p>
+            <p className={`mb-4 ${isMobile ? 'text-sm' : ''}`}>请输入拒绝原因：</p>
             <TextArea
               rows={4}
               placeholder="请输入拒绝原因"

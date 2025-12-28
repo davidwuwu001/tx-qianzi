@@ -14,6 +14,7 @@ import {
 import { useRouter } from 'next/navigation';
 import dayjs from 'dayjs';
 import { getContractStatisticsAction } from './actions';
+import { useResponsive } from '@/hooks/useResponsive';
 
 const { Title, Text, Paragraph } = Typography;
 const { RangePicker } = DatePicker;
@@ -36,6 +37,7 @@ export default function DashboardPage() {
   const { data: session } = useSession();
   const router = useRouter();
   const user = session?.user;
+  const { isMobile } = useResponsive();
 
   // 统计数据状态
   const [loading, setLoading] = useState(false);
@@ -116,16 +118,16 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* 欢迎区域 */}
-      <Card className="bg-gradient-to-r from-blue-500 to-indigo-600 border-0">
+      <Card className={`bg-gradient-to-r from-blue-500 to-indigo-600 border-0 ${isMobile ? 'p-2' : ''}`}>
         <div className="text-white">
-          <Title level={3} className="!text-white !mb-2">
+          <Title level={isMobile ? 4 : 3} className="!text-white !mb-2">
             {getGreeting()}，{user?.name || '用户'}！
           </Title>
-          <Paragraph className="!text-blue-100 !mb-0">
+          <Paragraph className={`!text-blue-100 !mb-0 ${isMobile ? 'text-sm' : ''}`}>
             欢迎使用腾讯电子签便捷签约系统
             {user?.cityName && `，当前管理城市：${user.cityName}`}
           </Paragraph>
-          <Text className="text-blue-200 text-sm">
+          <Text className={`text-blue-200 ${isMobile ? 'text-xs' : 'text-sm'}`}>
             角色：{getRoleLabel(user?.role || '')}
           </Text>
         </div>
@@ -133,8 +135,8 @@ export default function DashboardPage() {
 
       {/* 统计概览 */}
       <div>
-        <div className="flex justify-between items-center mb-4">
-          <Title level={4} className="!mb-0">
+        <div className={`flex ${isMobile ? 'flex-col gap-3' : 'justify-between items-center'} mb-4`}>
+          <Title level={4} className={`!mb-0 ${isMobile ? '!text-base' : ''}`}>
             数据概览
           </Title>
           <RangePicker
@@ -142,64 +144,65 @@ export default function DashboardPage() {
             onChange={(dates) => setDateRange(dates)}
             placeholder={['开始日期', '结束日期']}
             allowClear
+            style={{ width: isMobile ? '100%' : 'auto' }}
           />
         </div>
         <Spin spinning={loading}>
-          <Row gutter={[16, 16]}>
+          <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
             <Col xs={12} sm={8} lg={4}>
-              <Card>
+              <Card size={isMobile ? 'small' : 'default'}>
                 <Statistic
                   title="合同总数"
                   value={statistics?.total || 0}
-                  valueStyle={{ color: '#1677ff' }}
+                  valueStyle={{ color: '#1677ff', fontSize: isMobile ? 20 : 24 }}
                 />
               </Card>
             </Col>
             <Col xs={12} sm={8} lg={4}>
-              <Card>
+              <Card size={isMobile ? 'small' : 'default'}>
                 <Statistic
                   title="待乙方签署"
                   value={statistics?.pendingPartyB || 0}
-                  valueStyle={{ color: '#1677ff' }}
+                  valueStyle={{ color: '#1677ff', fontSize: isMobile ? 20 : 24 }}
                 />
               </Card>
             </Col>
             <Col xs={12} sm={8} lg={4}>
-              <Card>
+              <Card size={isMobile ? 'small' : 'default'}>
                 <Statistic
                   title="待甲方签署"
                   value={statistics?.pendingPartyA || 0}
-                  valueStyle={{ color: '#fa8c16' }}
+                  valueStyle={{ color: '#fa8c16', fontSize: isMobile ? 20 : 24 }}
                 />
               </Card>
             </Col>
             <Col xs={12} sm={8} lg={4}>
-              <Card>
+              <Card size={isMobile ? 'small' : 'default'}>
                 <Statistic
                   title="已完成"
                   value={statistics?.completed || 0}
-                  valueStyle={{ color: '#52c41a' }}
+                  valueStyle={{ color: '#52c41a', fontSize: isMobile ? 20 : 24 }}
                 />
               </Card>
             </Col>
             <Col xs={12} sm={8} lg={4}>
-              <Card>
+              <Card size={isMobile ? 'small' : 'default'}>
                 <Statistic
                   title="完成率"
                   value={statistics?.completionRate || 0}
                   suffix="%"
-                  valueStyle={{ color: '#52c41a' }}
+                  valueStyle={{ color: '#52c41a', fontSize: isMobile ? 20 : 24 }}
                   prefix={<RiseOutlined />}
                 />
               </Card>
             </Col>
             <Col xs={12} sm={8} lg={4}>
-              <Card>
+              <Card size={isMobile ? 'small' : 'default'}>
                 <Statistic
                   title="拒签率"
                   value={statistics?.rejectionRate || 0}
                   suffix="%"
-                  valueStyle={{ color: '#ff4d4f' }}
+                  valueStyle={{ color: '#ff4d4f', fontSize: isMobile ? 20 : 24 }}
                   prefix={<FallOutlined />}
                 />
               </Card>
@@ -210,25 +213,30 @@ export default function DashboardPage() {
 
       {/* 快捷操作 */}
       <div>
-        <Title level={4} className="!mb-4">
+        <Title level={4} className={`!mb-4 ${isMobile ? '!text-base' : ''}`}>
           快捷操作
         </Title>
-        <Row gutter={[16, 16]}>
+        <Row gutter={[isMobile ? 8 : 16, isMobile ? 8 : 16]}>
           {quickActions.map((action, index) => (
-            <Col xs={24} sm={12} lg={6} key={index}>
+            <Col xs={12} sm={12} lg={6} key={index}>
               <Card
                 hoverable
+                size={isMobile ? 'small' : 'default'}
                 className={`${action.color} border-0 transition-all duration-200 cursor-pointer`}
                 onClick={action.onClick}
               >
-                <div className="flex flex-col items-center text-center py-4">
-                  {action.icon}
-                  <Title level={5} className="!mt-3 !mb-1">
+                <div className={`flex flex-col items-center text-center ${isMobile ? 'py-2' : 'py-4'}`}>
+                  <span className={isMobile ? 'text-2xl' : 'text-3xl'}>
+                    {action.icon}
+                  </span>
+                  <Title level={5} className={`!mt-2 !mb-1 ${isMobile ? '!text-sm' : ''}`}>
                     {action.title}
                   </Title>
-                  <Text type="secondary" className="text-sm">
-                    {action.description}
-                  </Text>
+                  {!isMobile && (
+                    <Text type="secondary" className="text-sm">
+                      {action.description}
+                    </Text>
+                  )}
                 </div>
               </Card>
             </Col>
@@ -237,23 +245,30 @@ export default function DashboardPage() {
       </div>
 
       {/* 系统说明 */}
-      <Card title="系统说明" className="mt-6">
+      <Card 
+        title="系统说明" 
+        className="mt-6"
+        size={isMobile ? 'small' : 'default'}
+      >
         <div className="space-y-4">
           <div>
-            <Title level={5}>签约流程</Title>
-            <Paragraph type="secondary" className="!mb-0">
-              1. 选择产品模板 → 2. 填写乙方信息 → 3. 发送签署链接 → 4. 乙方签署 → 5. 审批通过 → 6. 甲方自动签署 → 7. 合同完成
+            <Title level={5} className={isMobile ? '!text-sm' : ''}>签约流程</Title>
+            <Paragraph type="secondary" className={`!mb-0 ${isMobile ? 'text-xs' : ''}`}>
+              {isMobile 
+                ? '选择产品 → 填写信息 → 发送链接 → 乙方签署 → 审批 → 甲方签署 → 完成'
+                : '1. 选择产品模板 → 2. 填写乙方信息 → 3. 发送签署链接 → 4. 乙方签署 → 5. 审批通过 → 6. 甲方自动签署 → 7. 合同完成'
+              }
             </Paragraph>
           </div>
           <div>
-            <Title level={5}>合同状态说明</Title>
-            <Space wrap>
-              <span className="px-2 py-1 bg-gray-100 rounded text-gray-600 text-sm">草稿</span>
-              <span className="px-2 py-1 bg-blue-100 rounded text-blue-600 text-sm">待乙方签署</span>
-              <span className="px-2 py-1 bg-orange-100 rounded text-orange-600 text-sm">待甲方签署</span>
-              <span className="px-2 py-1 bg-green-100 rounded text-green-600 text-sm">已完成签署</span>
-              <span className="px-2 py-1 bg-red-100 rounded text-red-600 text-sm">已拒签</span>
-              <span className="px-2 py-1 bg-gray-100 rounded text-gray-500 text-sm">已过期</span>
+            <Title level={5} className={isMobile ? '!text-sm' : ''}>合同状态说明</Title>
+            <Space wrap size={isMobile ? 'small' : 'middle'}>
+              <span className={`px-2 py-1 bg-gray-100 rounded text-gray-600 ${isMobile ? 'text-xs' : 'text-sm'}`}>草稿</span>
+              <span className={`px-2 py-1 bg-blue-100 rounded text-blue-600 ${isMobile ? 'text-xs' : 'text-sm'}`}>待乙方签署</span>
+              <span className={`px-2 py-1 bg-orange-100 rounded text-orange-600 ${isMobile ? 'text-xs' : 'text-sm'}`}>待甲方签署</span>
+              <span className={`px-2 py-1 bg-green-100 rounded text-green-600 ${isMobile ? 'text-xs' : 'text-sm'}`}>已完成签署</span>
+              <span className={`px-2 py-1 bg-red-100 rounded text-red-600 ${isMobile ? 'text-xs' : 'text-sm'}`}>已拒签</span>
+              <span className={`px-2 py-1 bg-gray-100 rounded text-gray-500 ${isMobile ? 'text-xs' : 'text-sm'}`}>已过期</span>
             </Space>
           </div>
         </div>

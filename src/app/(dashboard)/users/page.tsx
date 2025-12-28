@@ -17,8 +17,10 @@ import {
   Popconfirm,
   Space,
   Select,
+  Dropdown,
 } from 'antd';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
+import type { MenuProps } from 'antd';
 import {
   SearchOutlined,
   PlusOutlined,
@@ -30,6 +32,7 @@ import {
   UserOutlined,
   KeyOutlined,
   CrownOutlined,
+  MoreOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import {
@@ -41,6 +44,9 @@ import {
   deleteUserAction,
 } from './actions';
 import { getActiveCitiesAction } from '../cities/actions';
+import { useResponsive } from '@/hooks/useResponsive';
+import { getResponsiveColumns, getResponsivePagination, getResponsiveScroll } from '@/utils/responsive-table';
+import { getResponsiveModalProps } from '@/utils/responsive-modal';
 
 const { Title, Text } = Typography;
 
@@ -72,6 +78,7 @@ interface CityOption {
 export default function UsersPage() {
   const { data: session, status: sessionStatus } = useSession();
   const router = useRouter();
+  const { isMobile, isTablet } = useResponsive();
 
   // 状态
   const [loading, setLoading] = useState(false);
@@ -292,7 +299,36 @@ export default function UsersPage() {
 
 
   // 表格列配置
-  const columns: ColumnsType<UserListItem> = [
+  const getActionMenuItems = (record: UserListItem): MenuProps['items'] => [
+    {
+      key: 'edit',
+      icon: <EditOutlined />,
+      label: '编辑',
+      onClick: () => handleEdit(record),
+    },
+    {
+      key: 'resetPassword',
+      icon: <KeyOutlined />,
+      label: '重置密码',
+      onClick: () => handleResetPassword(record),
+    },
+    {
+      key: 'toggleStatus',
+      icon: record.isActive ? <StopOutlined /> : <CheckCircleOutlined />,
+      label: record.isActive ? '禁用' : '启用',
+      danger: record.isActive,
+      onClick: () => handleToggleStatus(record),
+    },
+    {
+      key: 'delete',
+      icon: <DeleteOutlined />,
+      label: '删除',
+      danger: true,
+      onClick: () => handleDelete(record),
+    },
+  ];
+
+  const baseColumns: ColumnsType<UserListItem> = [
     {
       title: '用户名',
       dataIndex: 'username',
@@ -370,69 +406,100 @@ export default function UsersPage() {
     {
       title: '操作',
       key: 'action',
-      width: 280,
-      fixed: 'right',
+      width: isMobile ? 60 : 280,
       render: (_: unknown, record: UserListItem) => (
-        <Space size="small">
-          <Button
-            type="link"
-            size="small"
-            icon={<EditOutlined />}
-            onClick={() => handleEdit(record)}
-          >
-            编辑
-          </Button>
-          <Popconfirm
-            title="确定要重置此用户的密码吗？"
-            description="重置后将生成新的临时密码"
-            onConfirm={() => handleResetPassword(record)}
-            okText="确定"
-            cancelText="取消"
-          >
+        isMobile ? (
+          <Dropdown menu={{ items: getActionMenuItems(record) }} trigger={['click']}>
+            <Button type="text" icon={<MoreOutlined />} />
+          </Dropdown>
+        ) : (
+          <Space size="small">
             <Button
               type="link"
               size="small"
-              icon={<KeyOutlined />}
+              icon={<EditOutlined />}
+              onClick={() => handleEdit(record)}
             >
-              重置密码
+              编辑
             </Button>
-          </Popconfirm>
-          <Popconfirm
-            title={record.isActive ? '确定要禁用此用户吗？' : '确定要启用此用户吗？'}
-            description={record.isActive ? '禁用后该用户将无法登录' : '启用后该用户可以正常登录'}
-            onConfirm={() => handleToggleStatus(record)}
-            okText="确定"
-            cancelText="取消"
-          >
-            <Button
-              type="link"
-              size="small"
-              icon={record.isActive ? <StopOutlined /> : <CheckCircleOutlined />}
-              danger={record.isActive}
+            <Popconfirm
+              title="确定要重置此用户的密码吗？"
+              description="重置后将生成新的临时密码"
+              onConfirm={() => handleResetPassword(record)}
+              okText="确定"
+              cancelText="取消"
             >
-              {record.isActive ? '禁用' : '启用'}
-            </Button>
-          </Popconfirm>
-          <Popconfirm
-            title="确定要删除此用户吗？"
-            description="此操作不可恢复"
-            onConfirm={() => handleDelete(record)}
-            okText="确定"
-            cancelText="取消"
-          >
-            <Button
-              type="link"
-              size="small"
-              icon={<DeleteOutlined />}
-              danger
+              <Button
+                type="link"
+                size="small"
+                icon={<KeyOutlined />}
+              >
+                重置密码
+              </Button>
+            </Popconfirm>
+            <Popconfirm
+              title={record.isActive ? '确定要禁用此用户吗？' : '确定要启用此用户吗？'}
+              description={record.isActive ? '禁用后该用户将无法登录' : '启用后该用户可以正常登录'}
+              onConfirm={() => handleToggleStatus(record)}
+              okText="确定"
+              cancelText="取消"
             >
-              删除
-            </Button>
-          </Popconfirm>
-        </Space>
+              <Button
+                type="link"
+                size="small"
+                icon={record.isActive ? <StopOutlined /> : <CheckCircleOutlined />}
+                danger={record.isActive}
+              >
+                {record.isActive ? '禁用' : '启用'}
+              </Button>
+            </Popconfirm>
+            <Popconfirm
+              title="确定要删除此用户吗？"
+              description="此操作不可恢复"
+              onConfirm={() => handleDelete(record)}
+              okText="确定"
+              cancelText="取消"
+            >
+              <Button
+                type="link"
+                size="small"
+                icon={<DeleteOutlined />}
+                danger
+              >
+                删除
+              </Button>
+            </Popconfirm>
+          </Space>
+        )
       ),
     },
   ];
+
+  // 应用响应式列配置
+  const columns = getResponsiveColumns(baseColumns, {
+    isMobile,
+    isTablet,
+    mobileHiddenColumns: ['phone', 'cityName', 'lastLoginAt', 'createdAt'],
+    tabletHiddenColumns: ['lastLoginAt', 'createdAt'],
+  });
+
+  // 响应式分页配置
+  const paginationConfig = getResponsivePagination({
+    isMobile,
+    current: currentPage,
+    pageSize,
+    total,
+    onChange: (page, size) => {
+      setCurrentPage(page);
+      setPageSize(size);
+    },
+  });
+
+  // 响应式滚动配置
+  const scrollConfig = getResponsiveScroll(isMobile, 500);
+
+  // 响应式弹窗配置
+  const modalProps = getResponsiveModalProps({ isMobile });
 
   // 加载中状态
   if (sessionStatus === 'loading') {
@@ -452,12 +519,12 @@ export default function UsersPage() {
   return (
     <div>
       {/* 页面标题 */}
-      <div className="flex justify-between items-center mb-6">
+      <div className={`${isMobile ? 'flex flex-col gap-3' : 'flex justify-between items-center'} mb-6`}>
         <div>
-          <Title level={4} className="!mb-1">
+          <Title level={4} className={`!mb-1 ${isMobile ? '!text-lg' : ''}`}>
             用户管理
           </Title>
-          <Text type="secondary">
+          <Text type="secondary" className={isMobile ? 'text-xs' : ''}>
             管理系统中的用户账号，包括系统管理员和城市管理员
           </Text>
         </div>
@@ -465,18 +532,19 @@ export default function UsersPage() {
           type="primary"
           icon={<PlusOutlined />}
           onClick={handleAdd}
+          block={isMobile}
         >
           新增用户
         </Button>
       </div>
 
       {/* 筛选区域 */}
-      <Card className="mb-4">
-        <div className="flex flex-wrap gap-4 items-center">
+      <Card className="mb-4" size={isMobile ? 'small' : 'default'}>
+        <div className={`flex ${isMobile ? 'flex-col gap-3' : 'flex-wrap gap-4'} items-center`}>
           <Input.Search
             placeholder="搜索用户名、姓名或手机号"
             allowClear
-            style={{ width: 280 }}
+            style={{ width: isMobile ? '100%' : 280 }}
             prefix={<SearchOutlined />}
             onSearch={handleSearch}
             onChange={(e) => !e.target.value && handleSearch('')}
@@ -485,7 +553,7 @@ export default function UsersPage() {
           <Select
             placeholder="角色筛选"
             allowClear
-            style={{ width: 150 }}
+            style={{ width: isMobile ? '100%' : 150 }}
             value={roleFilter}
             onChange={handleRoleFilter}
             options={[
@@ -497,30 +565,24 @@ export default function UsersPage() {
           <Button
             icon={<ReloadOutlined />}
             onClick={loadUsers}
+            block={isMobile}
           >
-            刷新
+            {isMobile ? '' : '刷新'}
           </Button>
         </div>
       </Card>
 
       {/* 用户列表 */}
-      <Card>
+      <Card size={isMobile ? 'small' : 'default'}>
         <Table
           columns={columns}
           dataSource={users}
           rowKey="id"
           loading={loading}
-          scroll={{ x: 1400 }}
-          pagination={{
-            current: currentPage,
-            pageSize,
-            total,
-            showSizeChanger: true,
-            showQuickJumper: true,
-            showTotal: (total) => `共 ${total} 条记录`,
-            pageSizeOptions: ['10', '20', '50', '100'],
-          }}
+          scroll={scrollConfig}
+          pagination={paginationConfig}
           onChange={handleTableChange}
+          size={isMobile ? 'small' : 'middle'}
         />
       </Card>
 
@@ -532,7 +594,7 @@ export default function UsersPage() {
         onCancel={handleModalCancel}
         confirmLoading={modalLoading}
         destroyOnHidden
-        width={500}
+        {...modalProps}
       >
         <Form
           form={form}
@@ -639,15 +701,16 @@ export default function UsersPage() {
         onOk={() => setPasswordModalVisible(false)}
         onCancel={() => setPasswordModalVisible(false)}
         cancelButtonProps={{ style: { display: 'none' } }}
+        {...modalProps}
       >
         <div className="py-4">
           <Text>新的临时密码为：</Text>
           <div className="mt-2 p-3 bg-gray-100 rounded-lg">
-            <Text copyable strong className="text-lg">
+            <Text copyable strong className={isMobile ? 'text-base' : 'text-lg'}>
               {tempPassword}
             </Text>
           </div>
-          <Text type="secondary" className="mt-2 block">
+          <Text type="secondary" className={`mt-2 block ${isMobile ? 'text-xs' : ''}`}>
             请将此密码告知用户，用户首次登录后建议修改密码
           </Text>
         </div>

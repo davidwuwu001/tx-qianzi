@@ -19,8 +19,10 @@ import {
   Tooltip,
   App,
   Divider,
+  Dropdown,
 } from 'antd';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
+import type { MenuProps } from 'antd';
 import {
   SearchOutlined,
   PlusOutlined,
@@ -33,7 +35,11 @@ import {
   FileTextOutlined,
   SettingOutlined,
   CloudDownloadOutlined,
+  MoreOutlined,
 } from '@ant-design/icons';
+import { useResponsive } from '@/hooks/useResponsive';
+import { getResponsiveColumns, getResponsivePagination, getResponsiveScroll } from '@/utils/responsive-table';
+import { getResponsiveModalProps } from '@/utils/responsive-modal';
 import dayjs from 'dayjs';
 import {
   getProductsAction,
@@ -80,6 +86,7 @@ export default function ProductsPage() {
   const { message } = App.useApp();
   const { data: session, status: sessionStatus } = useSession();
   const router = useRouter();
+  const { isMobile, isTablet } = useResponsive();
 
   // 状态
   const [loading, setLoading] = useState(false);
@@ -404,8 +411,38 @@ export default function ProductsPage() {
   };
 
 
+  // 表格列配置 - 移动端操作菜单
+  const getActionMenuItems = (record: ProductListItem): MenuProps['items'] => [
+    {
+      key: 'edit',
+      icon: <EditOutlined />,
+      label: '编辑',
+      onClick: () => handleEdit(record),
+    },
+    {
+      key: 'cities',
+      icon: <SettingOutlined />,
+      label: '城市',
+      onClick: () => handleManageCities(record),
+    },
+    {
+      key: 'toggleStatus',
+      icon: record.isActive ? <StopOutlined /> : <CheckCircleOutlined />,
+      label: record.isActive ? '禁用' : '启用',
+      danger: record.isActive,
+      onClick: () => handleToggleStatus(record),
+    },
+    ...(record.contractCount === 0 ? [{
+      key: 'delete',
+      icon: <DeleteOutlined />,
+      label: '删除',
+      danger: true,
+      onClick: () => handleDelete(record),
+    }] : []),
+  ];
+
   // 表格列配置
-  const columns: ColumnsType<ProductListItem> = [
+  const baseColumns: ColumnsType<ProductListItem> = [
     {
       title: '产品名称',
       dataIndex: 'name',
@@ -486,64 +523,97 @@ export default function ProductsPage() {
     {
       title: '操作',
       key: 'action',
-      width: 250,
+      width: isMobile ? 60 : 250,
       fixed: 'right',
       render: (_: unknown, record: ProductListItem) => (
-        <Space size="small">
-          <Button
-            type="link"
-            size="small"
-            icon={<EditOutlined />}
-            onClick={() => handleEdit(record)}
-          >
-            编辑
-          </Button>
-          <Button
-            type="link"
-            size="small"
-            icon={<SettingOutlined />}
-            onClick={() => handleManageCities(record)}
-          >
-            城市
-          </Button>
-          <Popconfirm
-            title={record.isActive ? '确定要禁用此产品吗？' : '确定要启用此产品吗？'}
-            description={record.isActive ? '禁用后该产品不能用于新合同' : '启用后该产品可以正常使用'}
-            onConfirm={() => handleToggleStatus(record)}
-            okText="确定"
-            cancelText="取消"
-          >
+        isMobile ? (
+          <Dropdown menu={{ items: getActionMenuItems(record) }} trigger={['click']}>
+            <Button type="text" icon={<MoreOutlined />} />
+          </Dropdown>
+        ) : (
+          <Space size="small">
             <Button
               type="link"
               size="small"
-              icon={record.isActive ? <StopOutlined /> : <CheckCircleOutlined />}
-              danger={record.isActive}
+              icon={<EditOutlined />}
+              onClick={() => handleEdit(record)}
             >
-              {record.isActive ? '禁用' : '启用'}
+              编辑
             </Button>
-          </Popconfirm>
-          {record.contractCount === 0 && (
+            <Button
+              type="link"
+              size="small"
+              icon={<SettingOutlined />}
+              onClick={() => handleManageCities(record)}
+            >
+              城市
+            </Button>
             <Popconfirm
-              title="确定要删除此产品吗？"
-              description="此操作不可恢复"
-              onConfirm={() => handleDelete(record)}
+              title={record.isActive ? '确定要禁用此产品吗？' : '确定要启用此产品吗？'}
+              description={record.isActive ? '禁用后该产品不能用于新合同' : '启用后该产品可以正常使用'}
+              onConfirm={() => handleToggleStatus(record)}
               okText="确定"
               cancelText="取消"
             >
               <Button
                 type="link"
                 size="small"
-                icon={<DeleteOutlined />}
-                danger
+                icon={record.isActive ? <StopOutlined /> : <CheckCircleOutlined />}
+                danger={record.isActive}
               >
-                删除
+                {record.isActive ? '禁用' : '启用'}
               </Button>
             </Popconfirm>
-          )}
-        </Space>
+            {record.contractCount === 0 && (
+              <Popconfirm
+                title="确定要删除此产品吗？"
+                description="此操作不可恢复"
+                onConfirm={() => handleDelete(record)}
+                okText="确定"
+                cancelText="取消"
+              >
+                <Button
+                  type="link"
+                  size="small"
+                  icon={<DeleteOutlined />}
+                  danger
+                >
+                  删除
+                </Button>
+              </Popconfirm>
+            )}
+          </Space>
+        )
       ),
     },
   ];
+
+  // 应用响应式列配置
+  const columns = getResponsiveColumns(baseColumns, {
+    isMobile,
+    isTablet,
+    mobileHiddenColumns: ['description', 'templateId', 'createdAt'],
+    tabletHiddenColumns: ['createdAt'],
+  });
+
+  // 响应式分页配置
+  const paginationConfig = getResponsivePagination({
+    isMobile,
+    current: currentPage,
+    pageSize,
+    total,
+    onChange: (page, size) => {
+      setCurrentPage(page);
+      setPageSize(size);
+    },
+  });
+
+  // 响应式滚动配置
+  const scrollConfig = getResponsiveScroll(isMobile, 600);
+
+  // 响应式弹窗配置
+  const modalProps = getResponsiveModalProps({ isMobile, desktopWidth: 900 });
+  const cityModalProps = getResponsiveModalProps({ isMobile });
 
   // 加载中状态
   if (sessionStatus === 'loading') {
@@ -563,12 +633,12 @@ export default function ProductsPage() {
   return (
     <div>
       {/* 页面标题 */}
-      <div className="flex justify-between items-center mb-6">
+      <div className={`${isMobile ? 'flex flex-col gap-3' : 'flex justify-between items-center'} mb-6`}>
         <div>
-          <Title level={4} className="!mb-1">
+          <Title level={4} className={`!mb-1 ${isMobile ? '!text-lg' : ''}`}>
             产品管理
           </Title>
-          <Text type="secondary">
+          <Text type="secondary" className={isMobile ? 'text-xs' : ''}>
             管理系统中的产品配置，产品与腾讯电子签模板绑定
           </Text>
         </div>
@@ -576,18 +646,19 @@ export default function ProductsPage() {
           type="primary"
           icon={<PlusOutlined />}
           onClick={handleAdd}
+          block={isMobile}
         >
           新增产品
         </Button>
       </div>
 
       {/* 筛选区域 */}
-      <Card className="mb-4">
-        <div className="flex flex-wrap gap-4 items-center">
+      <Card className="mb-4" size={isMobile ? 'small' : 'default'}>
+        <div className={`flex ${isMobile ? 'flex-col gap-3' : 'flex-wrap gap-4'} items-center`}>
           <Input.Search
             placeholder="搜索产品名称或描述"
             allowClear
-            style={{ width: 250 }}
+            style={{ width: isMobile ? '100%' : 250 }}
             prefix={<SearchOutlined />}
             onSearch={handleSearch}
             onChange={(e) => !e.target.value && handleSearch('')}
@@ -596,30 +667,24 @@ export default function ProductsPage() {
           <Button
             icon={<ReloadOutlined />}
             onClick={loadProducts}
+            block={isMobile}
           >
-            刷新
+            {isMobile ? '' : '刷新'}
           </Button>
         </div>
       </Card>
 
       {/* 产品列表 */}
-      <Card>
+      <Card size={isMobile ? 'small' : 'default'}>
         <Table
           columns={columns}
           dataSource={products}
           rowKey="id"
           loading={loading}
-          scroll={{ x: 1300 }}
-          pagination={{
-            current: currentPage,
-            pageSize,
-            total,
-            showSizeChanger: true,
-            showQuickJumper: true,
-            showTotal: (total) => `共 ${total} 条记录`,
-            pageSizeOptions: ['10', '20', '50', '100'],
-          }}
+          scroll={scrollConfig}
+          pagination={paginationConfig}
           onChange={handleTableChange}
+          size={isMobile ? 'small' : 'middle'}
         />
       </Card>
 
@@ -630,7 +695,8 @@ export default function ProductsPage() {
         onOk={handleModalOk}
         onCancel={handleModalCancel}
         confirmLoading={modalLoading}
-        width={900}
+        destroyOnHidden
+        {...modalProps}
       >
         <Form
           form={form}
@@ -730,9 +796,11 @@ export default function ProductsPage() {
         onOk={handleCityModalOk}
         onCancel={handleCityModalCancel}
         confirmLoading={cityModalLoading}
+        destroyOnHidden
+        {...cityModalProps}
       >
         <div className="py-4">
-          <Text type="secondary" className="mb-4 block">
+          <Text type="secondary" className={`mb-4 block ${isMobile ? 'text-xs' : ''}`}>
             选择可以使用此产品的城市
           </Text>
           <Select

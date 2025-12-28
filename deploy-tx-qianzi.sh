@@ -17,7 +17,7 @@ NC='\033[0m'
 # 项目配置
 PM2_APP_NAME="tx-qianzi"
 GIT_BRANCH="master"
-GIT_REMOTE="origin"
+GIT_REMOTE="gitee"
 
 # 服务器配置（使用 SSH 密钥免密登录）
 SERVER_HOST="139.196.192.43"
